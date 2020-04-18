@@ -1,0 +1,9 @@
+.idea/
+data/config.json
+data/archive.json
+data/secret.py
+data/discord.log
+data/starred.json
+data/connect/
+data/disconnect/
+lab.py
