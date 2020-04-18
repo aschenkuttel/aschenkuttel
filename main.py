@@ -26,7 +26,6 @@ class Aschenkuttel(commands.Bot):
         self.cog_setup()
 
     async def on_ready(self):
-
         if not self.session:
             self.session = aiohttp.ClientSession(loop=self.loop)
 
@@ -50,6 +49,7 @@ class Aschenkuttel(commands.Bot):
                 self.load_extension(cog_path)
             except commands.ExtensionNotFound:
                 print(f"module {file} not found")
+
 
 bot = Aschenkuttel(command_prefix=".", case_insensitive=True)
 bot.run(TOKEN)

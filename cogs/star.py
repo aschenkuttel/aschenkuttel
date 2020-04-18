@@ -56,9 +56,11 @@ class Starboard(commands.Cog):
         guild = self.bot.get_guild(payload.guild_id)
         if not guild:
             return
+
         if payload.emoji.name == "⭐":
             if payload.message_id in self._starred:
                 return
+
             for m in self.bot.cached_messages:
                 if payload.message_id == m.id:
                     message = m
@@ -69,21 +71,13 @@ class Starboard(commands.Cog):
 
             channel_id = self.bot.config.get_item(payload.guild_id, 'starboard')
             channel = self.bot.get_channel(channel_id)
+
             if message.channel == channel:
                 return
+
             for reaction in message.reactions:
                 if reaction.emoji == "⭐" and reaction.count > 4:
                     await self.star_message(message)
-
-    @commands.command(name="starboard")
-    @commands.has_permissions(administrator=True)
-    async def starboard_(self, ctx):
-        self.bot.config.save_item(ctx.guild.id, 'starboard', ctx.channel.id)
-        if ctx.guild.id not in self._starred:
-            self._starred[ctx.guild.id] = {}
-            json.dump(self._starred, open(f"{self.bot.path}/data/starred.json", 'w'))
-        msg = f"{ctx.channel.mention} ist nun das Starboard"
-        await ctx.send(msg)
 
 
 def setup(bot):

@@ -1,7 +1,4 @@
-from discord.ext import commands
 import collections
-import datetime
-import discord
 import random
 import json
 import os
@@ -18,7 +15,7 @@ class ConfigHandler:
         data = {int(key): value for key, value in file.items()}
         return data
 
-    def save_config(self):
+    def save(self):
         with open(self.path, 'w') as file:
             json.dump(self._config, file)
 
@@ -28,7 +25,7 @@ class ConfigHandler:
             self._config[guild_id] = {key: item}
         else:
             config[key] = item
-        self.save_config()
+        self.save()
 
     def get_item(self, guild_id, key):
         config = self._config.get(guild_id)
@@ -38,7 +35,7 @@ class ConfigHandler:
     def remove_item(self, guild_id, key):
         config = self._config.get(guild_id)
         job = config.pop(key) if config else None
-        self.save_config()
+        self.save()
         return job
 
 
@@ -118,26 +115,3 @@ class Cooldown:
 
     def clear(self):
         self._cache.clear()
-
-
-def get_seconds():
-    now = datetime.datetime.now()
-    clean = now + datetime.timedelta(days=1)
-    goal_time = clean.replace(hour=0, minute=0, second=0, microsecond=0)
-    start_time = now.replace(microsecond=0)
-    return (goal_time - start_time).seconds
-
-
-# --- Guild Only --- #
-class GuildOnly(commands.CheckFailure):
-    pass
-
-
-# --- Error Embed --- #
-def error_embed(msg):
-    return discord.Embed(description=msg, color=discord.Color.red())
-
-
-# --- Normal Embed --- #
-def normal_embed(msg):
-    return discord.Embed(description=msg, color=discord.Color.blue())
