@@ -1,4 +1,5 @@
 .idea/
+venv/
 data/config.json
 data/archive.json
 data/secret.py

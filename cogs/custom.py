@@ -29,19 +29,25 @@ class Custom(commands.Cog):
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
         vc = member.guild.voice_client
-        me = member.guild.me
-        if member == self.bot.user or me.voice is None:
-            return
         if before.channel == after.channel or vc is None:
             return
+
+        me = member.guild.me
+        if me.voice is None:
+            return
+
         if self.cd.update(member.id) is False:
             return
+
         if me.voice.channel in (before.channel, after.channel):
             state = "connect" if after.channel == me.voice.channel else "disconnect"
             custom = self.get_custom(member.id, state)
             file = custom or f"{self.bot.path}/data/{state}/default.wav"
+
+            # bot connected first
             if not vc.is_connected():
-                vc = await me.voice.channel.connect()
+                await asyncio.sleep(1)
+
             if not vc.is_playing():
                 source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(source=file), 0.18)
                 vc.play(source=source)
@@ -52,8 +58,15 @@ class Custom(commands.Cog):
             return
 
         for guild in self.bot.guilds:
+            vc = guild.voice_client
 
-            if guild.id != 213992901263228928:
+            # if guild.id != 213992901263228928:
+            #     continue
+
+            switch = self.bot.config.get(guild.id, 'sounds')
+            if not switch:
+                if vc:
+                    await vc.disconnect()
                 continue
 
             channels = []
@@ -69,7 +82,6 @@ class Custom(commands.Cog):
             if not full:
                 continue
 
-            vc = guild.voice_client
             if guild.me in full.members:
 
                 members = [guild.me]

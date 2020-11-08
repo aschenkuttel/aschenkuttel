@@ -1,4 +1,4 @@
-from data.secret import TOKEN, cogs
+from data.secret import TOKEN, cogs, default_prefix
 from discord.ext import commands
 import discord
 import aiohttp
@@ -16,11 +16,12 @@ logger.addHandler(handler)
 
 class Aschenkuttel(commands.Bot):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(command_prefix=self.prefix, *args, **kwargs)
         self.path = os.path.dirname(__file__)
         self.add_check(self.global_check)
-        self.config = utils.ConfigHandler()
+        self.config = utils.ConfigHandler(self)
         self.msg = json.load(open(f"{self.path}/data/msg.json"))
+        self.activity = discord.Activity(type=2, name="Billie Eilish")
         self.remove_command("help")
         self.session = None
         self.cog_setup()
@@ -30,17 +31,24 @@ class Aschenkuttel(commands.Bot):
             self.session = aiohttp.ClientSession(loop=self.loop)
 
         print("Es war einmal vor langer Zeit...")
-        song = discord.Activity(type=2, name="Billie Eilish")
-        await self.change_presence(activity=song)
 
     @staticmethod
     async def global_check(ctx):
         if ctx.invoked_with in ("connect", "disconnect"):
             return True
+
         elif ctx.guild is None:
-            raise utils.GuildOnly()
+            raise commands.NoPrivateMessage()
+
         else:
             return True
+
+    async def prefix(self, _, message):
+        if message.guild is None:
+            return default_prefix
+
+        prefix = self.config.get(message.guild.id, 'prefix')
+        return prefix or default_prefix
 
     def cog_setup(self):
         for file in cogs:
@@ -51,5 +59,5 @@ class Aschenkuttel(commands.Bot):
                 print(f"module {file} not found")
 
 
-bot = Aschenkuttel(command_prefix=".", case_insensitive=True)
-bot.run(TOKEN)
+self = Aschenkuttel(case_insensitive=True)
+self.run(TOKEN)

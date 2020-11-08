@@ -5,9 +5,9 @@ import os
 
 
 class ConfigHandler:
-    def __init__(self):
-        self.cache = os.path.dirname(__file__)
-        self.path = f"{self.cache}/data/config.json"
+    def __init__(self, bot):
+        self.bot = bot
+        self.path = f"{self.bot.path}/data/config.json"
         self._config = self.config_setup()
 
     def config_setup(self):
@@ -19,7 +19,7 @@ class ConfigHandler:
         with open(self.path, 'w') as file:
             json.dump(self._config, file)
 
-    def save_item(self, guild_id, key, item):
+    def store(self, guild_id, key, item):
         config = self._config.get(guild_id)
         if not config:
             self._config[guild_id] = {key: item}
@@ -27,22 +27,24 @@ class ConfigHandler:
             config[key] = item
         self.save()
 
-    def get_item(self, guild_id, key):
+    def get(self, guild_id, key):
         config = self._config.get(guild_id)
         item = config.get(key) if config else None
         return item
 
-    def remove_item(self, guild_id, key):
+    def remove(self, guild_id, key):
         config = self._config.get(guild_id)
-        job = config.pop(key) if config else None
-        self.save()
-        return job
+        if config:
+            job = config.pop(key, None)
+            if job:
+                self.save()
+            return job
 
 
 class IconHandler:
-    def __init__(self):
-        self.root = os.path.dirname(__file__)
-        self.path = f"{self.root}/data/archive.json"
+    def __init__(self, bot):
+        self.bot = bot
+        self.path = f"{self.bot.path}/data/archive.json"
         self._config = self.setup()
         self._cache = {}
 

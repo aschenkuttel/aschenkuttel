@@ -1,4 +1,4 @@
-from utils import get_seconds, IconHandler
+from utils import get_seconds_till, IconHandler
 from discord.ext import commands
 from data.secret import API_KEY
 import asyncio
@@ -10,16 +10,18 @@ class Icon(commands.Cog):
         self.bot = bot
         self.url = "https://api.unsplash.com/photos/random"
         self.bot.loop.create_task(self.guild_icon_loop())
-        self.archive = IconHandler()
+        self.archive = IconHandler(self.bot)
 
     async def guild_icon_loop(self):
         while not self.bot.is_closed():
-            sec = get_seconds()
+            sec = get_seconds_till(days=1)
             await asyncio.sleep(sec)
+
             for guild in self.bot.guilds:
-                key = self.bot.config.get_item(guild.id, 'query')
+                key = self.bot.config.get(guild.id, 'query')
                 if not key:
                     continue
+
                 payload = {'query': key}
                 auth = {'Authorization': API_KEY}
                 async with self.bot.session.get(self.url, params=payload, headers=auth) as r:
@@ -31,17 +33,14 @@ class Icon(commands.Cog):
 
                     except KeyError:
                         continue
+
                 try:
                     await guild.edit(icon=cache)
+
                 except discord.Forbidden:
                     continue
-            await asyncio.sleep(1)
 
-    @commands.command(name="query")
-    async def query_(self, ctx, query):
-        self.bot.config.save_item(ctx.guild.id, 'query', query)
-        msg = f"Das neue Schlagwort wurde registriert"
-        await ctx.send(msg)
+            await asyncio.sleep(1)
 
 
 def setup(bot):

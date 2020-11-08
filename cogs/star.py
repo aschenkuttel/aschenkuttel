@@ -16,16 +16,17 @@ class Starboard(commands.Cog):
         self._starred = data
 
     async def star_message(self, message):
-        starred = self._starred.get(message.guild.id)
-        if starred is None:
-            return
-
-        if str(message.id) in starred:
-            return
-
-        channel_id = self.bot.config.get_item(message.guild.id, 'starboard')
+        channel_id = self.bot.config.get(message.guild.id, 'starboard')
         channel = self.bot.get_channel(channel_id)
         if not channel:
+            return
+
+        starred = self._starred.get(message.guild.id)
+        if starred is None:
+            self._starred[message.guild.id] = {}
+            starred = self._starred[message.guild.id]
+
+        elif str(message.id) in starred:
             return
 
         embed = discord.Embed(description=message.content)
@@ -39,17 +40,19 @@ class Starboard(commands.Cog):
             file = message.attachments[0]
             if file.url.lower().endswith(('png', 'jpeg', 'jpg', 'gif', 'webp')):
                 embed.set_image(url=file.url)
+
             else:
                 embed.add_field(name='Attachment', value=f'[{file.filename}]({file.url})',
                                 inline=False)
 
-        embed.add_field(name='Original', value=f'[Jump!]({message.jump_url})', inline=False)
+        embed.add_field(name='Original', value=f'[Klick mich!]({message.jump_url})', inline=False)
         embed.set_author(name=message.author.display_name,
                          icon_url=message.author.avatar_url_as(format='png'))
         embed.timestamp = message.created_at
         msg = await channel.send(embed=embed)
+
         starred[str(message.id)] = msg.id
-        json.dump(self._starred, open(f"{self.bot.path}/data/starred.json", 'w'))
+        json.dump(self._starred, open(self.path, 'w'))
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
@@ -69,14 +72,14 @@ class Starboard(commands.Cog):
                 channel = self.bot.get_channel(payload.channel_id)
                 message = await channel.fetch_message(payload.message_id)
 
-            channel_id = self.bot.config.get_item(payload.guild_id, 'starboard')
+            channel_id = self.bot.config.get(payload.guild_id, 'starboard')
             channel = self.bot.get_channel(channel_id)
 
             if message.channel == channel:
                 return
 
             for reaction in message.reactions:
-                if reaction.emoji == "⭐" and reaction.count > 4:
+                if reaction.emoji == "⭐" and reaction.count > 0:
                     await self.star_message(message)
 
 
