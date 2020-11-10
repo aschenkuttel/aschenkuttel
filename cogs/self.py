@@ -1,3 +1,4 @@
+import discord
 from discord.ext import commands
 
 
@@ -12,10 +13,15 @@ class Owner(commands.Cog):
 
     @commands.command(name="reload")
     async def reload_(self, ctx, file):
-        cog = f"extensions.{file}"
-        self.bot.reload_extension(cog)
-        msg = f"{file} wurde erfolgreich neugeladen"
+        try:
+            self.bot.reload_extension(f"cogs.{file}")
+            msg = f"`{file}.py` wurde erfolgreich neugeladen"
+
+        except commands.ExtensionNotLoaded:
+            msg = f"`{file}.py` konnte ich leider nicht finden"
+
         await ctx.send(msg)
+
 
 
 def setup(bot):

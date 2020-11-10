@@ -21,7 +21,7 @@ class Aschenkuttel(commands.Bot):
         self.add_check(self.global_check)
         self.config = utils.ConfigHandler(self)
         self.msg = json.load(open(f"{self.path}/data/msg.json"))
-        self.activity = discord.Activity(type=2, name="Billie Eilish")
+        self.activity = discord.Activity(type=2, name="187 Straßenbande")
         self.remove_command("help")
         self.session = None
         self.cog_setup()
@@ -47,8 +47,11 @@ class Aschenkuttel(commands.Bot):
         if message.guild is None:
             return default_prefix
 
-        prefix = self.config.get(message.guild.id, 'prefix')
+        prefix = self.get('prefix', message.guild.id)
         return prefix or default_prefix
+
+    def get(self, key, guild_id):
+        return self.config.get(guild_id, key)
 
     def cog_setup(self):
         for file in cogs:
