@@ -18,14 +18,17 @@ class Icon(commands.Cog):
             await asyncio.sleep(sec)
 
             for guild in self.bot.guilds:
-                key = self.bot.config.get(guild.id, 'query')
-                if not key:
+                key = self.bot.config.get('query', guild.id)
+                enabled = self.bot.config.get('icon', guild.id)
+
+                if key is None or not enabled:
                     continue
 
                 payload = {'query': key}
                 auth = {'Authorization': API_KEY}
                 async with self.bot.session.get(self.url, params=payload, headers=auth) as r:
                     data = await r.json()
+
                     try:
                         small_url = data['urls']['small']
                         async with self.bot.session.get(small_url) as resp:

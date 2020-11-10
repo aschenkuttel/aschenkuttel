@@ -19,20 +19,22 @@ class ConfigHandler:
         with open(self.path, 'w') as file:
             json.dump(self._config, file)
 
-    def store(self, guild_id, key, item):
+    def store(self, key, item, guild_id):
         config = self._config.get(guild_id)
+
         if not config:
             self._config[guild_id] = {key: item}
         else:
             config[key] = item
+
         self.save()
 
-    def get(self, guild_id, key):
+    def get(self, key, guild_id):
         config = self._config.get(guild_id)
         item = config.get(key) if config else None
         return item
 
-    def remove(self, guild_id, key):
+    def remove(self, key, guild_id):
         config = self._config.get(guild_id)
         if config:
             job = config.pop(key, None)

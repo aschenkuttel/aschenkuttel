@@ -10,17 +10,18 @@ import io
 class Sounds(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self._lock = []
-        self._cache = {}
+        self.lock = []
+        self.cache = {}
+        self.config = self.bot.config
 
     def get_fullest_channel(self, guild):
-        ignored_channel = self.bot.get('hidden_channel', guild.id)
+        ignored = self.config.get('hidden', guild.id)
 
         visible_channel = []
         for channel in guild.voice_channels:
             if channel == guild.afk_channel:
                 continue
-            elif channel.id in ignored_channel:
+            elif channel.id in ignored:
                 continue
             else:
                 visible_channel.append(channel)
@@ -50,11 +51,10 @@ class Sounds(commands.Cog):
         guild = member.guild
         vc = guild.voice_client
 
-        if guild in self._lock:
+        if guild in self.lock:
             return
 
-        active = self.bot.get('sounds', guild.id)
-
+        active = self.config.get('sounds', guild.id)
         if not active:
             if vc:
                 await vc.disconnect()
@@ -65,16 +65,16 @@ class Sounds(commands.Cog):
             most_people = self.get_fullest_channel(guild)
 
             if guild.me not in most_people.members:
-                self._lock.append(guild)
+                self.lock.append(guild)
                 await asyncio.sleep(1)
-                self._lock.remove(guild)
+                self.lock.remove(guild)
 
                 if vc is None:
                     await most_people.connect()
                 else:
                     member_ids = [m.id for m in before.channel.members]
                     member_ids.append(member.id)
-                    self._cache[guild] = member_ids
+                    self.cache[guild] = member_ids
                     await vc.move_to(most_people)
 
                 return
@@ -100,7 +100,7 @@ class Sounds(commands.Cog):
                         await asyncio.sleep(0.5)
 
                 else:
-                    member_ids = self._cache.get(guild, [])
+                    member_ids = self.cache.get(guild, [])
 
                     ids = [m.id for m in vc.channel.members]
                     if sorted(member_ids) == sorted(ids):
@@ -130,13 +130,14 @@ class Sounds(commands.Cog):
             url = ctx.message.attachments[0].url
             async with self.bot.session.get(url) as file:
                 data = await file.read()
-                self._cache[ctx.author.id] = data
+                self.cache[ctx.author.id] = data
 
         else:
-            data = self._cache.get(ctx.author.id)
+            data = self.cache.get(ctx.author.id)
             if data is None:
                 msg = "Es ist keine Datei im Cache vorhanden"
-                return await ctx.send(msg)
+                await ctx.send(msg)
+                return
 
         func = functools.partial(self.edit_track, data, begin, to)
         song, new_file = await self.bot.loop.run_in_executor(None, func)
@@ -155,7 +156,7 @@ class Sounds(commands.Cog):
             if msg.content.lower() == "y":
                 song.export(f"{self.bot.path}/data/{ctx.invoked_with}/{ctx.author.id}.mp3")
                 msg = f"Dein {ctx.invoked_with.capitalize()}-Sound wurde eingerichtet"
-                self._cache.pop(ctx.author.id)
+                self.cache.pop(ctx.author.id)
 
             else:
                 msg = "Bitte gebe nun den gleichen Command mit veränderten Zeiten an,\n" \
@@ -165,6 +166,7 @@ class Sounds(commands.Cog):
 
         except asyncio.TimeoutError:
             await reply.edit(content="Die Zeit ist abgelaufen...")
+            self.cache.pop(ctx.author.id)
             return
 
     @commands.command(name="clear")

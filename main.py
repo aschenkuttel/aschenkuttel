@@ -47,11 +47,8 @@ class Aschenkuttel(commands.Bot):
         if message.guild is None:
             return default_prefix
 
-        prefix = self.get('prefix', message.guild.id)
+        prefix = self.config.get('prefix', message.guild.id)
         return prefix or default_prefix
-
-    def get(self, key, guild_id):
-        return self.config.get(guild_id, key)
 
     def cog_setup(self):
         for file in cogs:
