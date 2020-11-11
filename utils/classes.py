@@ -29,9 +29,9 @@ class ConfigHandler:
 
         self.save()
 
-    def get(self, key, guild_id):
-        config = self._config.get(guild_id)
-        item = config.get(key) if config else None
+    def get(self, key, guild_id, default=None):
+        config = self._config.get(guild_id, {})
+        item = config.get(key) or default
         return item
 
     def remove(self, key, guild_id):

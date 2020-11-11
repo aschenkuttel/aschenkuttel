@@ -11,7 +11,7 @@ class Config(commands.Cog):
             'query': ["Das", "Schlagwort"],
             'starboard': "Das",
         }
-        self.features = {'sounds': "Join Sounds",
+        self.features = {'sound': "Join Sounds",
                          'icon': "Random Server Icons"}
         self.config = self.bot.config
 
@@ -85,7 +85,7 @@ class Config(commands.Cog):
             await ctx.send(embed=utils.embed(msg))
 
     @commands.group(invoke_without_command=True, name="remove")
-    async def remove(self, ctx, target):
+    async def remove_(self, ctx, target):
         pronoun = self.german.get(target)
 
         if pronoun is None:
@@ -121,7 +121,6 @@ class Config(commands.Cog):
 
         else:
             current = self.config.get(feature, ctx.guild.id)
-
             if action == "enable" and current or action == "disable" and not current:
                 cur = "aktiv" if current else "inaktiv"
                 msg = f"Die {name} sind bereits `{cur}`"
@@ -132,6 +131,64 @@ class Config(commands.Cog):
                 new_action = "aktiv" if not current else "inaktiv"
                 msg = f"Die {name} sind nun {new_action}"
                 await ctx.send(embed=utils.embed(msg))
+
+    @commands.group(name="hide", invoke_without_command=True)
+    async def hide(self, ctx, channel_id: int):
+        channel = self.bot.get_channel(channel_id)
+
+        if channel is None:
+            msg = "Die angegebene ID ist ungültig"
+            await ctx.send(embed=utils.embed(msg, error=True))
+            return
+
+        action = "versteckt..."
+        hidden_channel = self.config.get('hidden', ctx.guild.id)
+
+        if hidden_channel is None:
+            self.config.store('hidden', [channel.id], ctx.guild.id)
+
+        elif channel.id in hidden_channel:
+            hidden_channel.remove(channel.id)
+            self.config.save()
+            action = "wieder sichtbar..."
+
+        else:
+            hidden_channel.append(channel.id)
+            self.config.save()
+
+        msg = f"Der Channel `{channel.name}` ist nun {action}"
+        await ctx.send(embed=utils.embed(msg))
+
+    @hide.command(name="list")
+    async def list_(self, ctx):
+        hidden_ids = self.config.get('hidden', ctx.guild.id)
+        if not hidden_ids:
+            msg = "Es sind momentan alle Channel sichtbar"
+            await ctx.send(embed=utils.embed(msg))
+            return
+
+        description = []
+        for channel_id in hidden_ids.copy():
+            channel = self.bot.get_channel(channel_id)
+            if channel is None:
+                hidden_ids.remove(channel_id)
+
+            else:
+                description.append(f"**#{channel.name}**")
+
+        embed = utils.embed("\n".join(description))
+        await ctx.send(embed=embed)
+
+    @hide.command(name="clear")
+    async def clear_(self, ctx):
+        hidden_ids = self.config.get('hidden', ctx.guild.id)
+
+        if hidden_ids:
+            hidden_ids.clear()
+            self.config.save()
+
+        msg = "Die Liste wurde erfolgreich zurückgesetzt..."
+        await ctx.send(embed=utils.embed(msg))
 
 
 def setup(bot):

@@ -23,6 +23,8 @@ class Sounds(commands.Cog):
                 continue
             elif channel.id in ignored:
                 continue
+            elif not channel.members:
+                continue
             else:
                 visible_channel.append(channel)
 
@@ -30,7 +32,7 @@ class Sounds(commands.Cog):
             return len([m for m in c.members if not m.bot])
 
         listed = sorted(visible_channel, key=key, reverse=True)
-        return listed[0]
+        return listed[0] if listed else None
 
     def get_sound_path(self, user_id, state):
         path = f"{self.bot.path}/data/{state}/{user_id}.mp3"
@@ -42,9 +44,6 @@ class Sounds(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
-        if member.guild.id != 213992901263228928:
-            return
-
         if before.channel == after.channel:
             return
 
@@ -54,7 +53,7 @@ class Sounds(commands.Cog):
         if guild in self.lock:
             return
 
-        active = self.config.get('sounds', guild.id)
+        active = self.config.get('sound', guild.id)
         if not active:
             if vc:
                 await vc.disconnect()
@@ -64,7 +63,10 @@ class Sounds(commands.Cog):
         if after.channel is not None:
             most_people = self.get_fullest_channel(guild)
 
-            if guild.me not in most_people.members:
+            same_channel = after.channel == most_people
+            not_inside = guild.me not in most_people.members
+
+            if same_channel and not_inside:
                 self.lock.append(guild)
                 await asyncio.sleep(1)
                 self.lock.remove(guild)
@@ -106,7 +108,9 @@ class Sounds(commands.Cog):
                     if sorted(member_ids) == sorted(ids):
                         return
 
+            print(state)
             if not vc.is_playing():
+                print("played")
                 sound = discord.FFmpegPCMAudio(source=sound_path)
                 source = discord.PCMVolumeTransformer(sound, 0.18)
                 vc.play(source=source)

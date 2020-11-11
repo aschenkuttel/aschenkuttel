@@ -19,9 +19,10 @@ class Owner(commands.Cog):
 
         except commands.ExtensionNotLoaded:
             msg = f"`{file}.py` konnte ich leider nicht finden"
+        except commands.ExtensionFailed:
+            msg = f"`{file}.py` konnte nicht geladen werden"
 
         await ctx.send(msg)
-
 
 
 def setup(bot):
