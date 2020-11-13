@@ -15,7 +15,7 @@ class Sounds(commands.Cog):
         self.config = self.bot.config
 
     def get_fullest_channel(self, guild):
-        ignored = self.config.get('hidden', guild.id)
+        ignored = self.config.get('hidden', guild.id, [])
 
         visible_channel = []
         for channel in guild.voice_channels:
@@ -40,7 +40,7 @@ class Sounds(commands.Cog):
         if os.path.isfile(path):
             return path
         else:
-            f"{self.bot.path}/data/{state}/default.wav"
+            return f"{self.bot.path}/data/{state}/default.wav"
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
@@ -93,7 +93,7 @@ class Sounds(commands.Cog):
         if vc.channel in (before.channel, after.channel):
             state = "connect" if after.channel == vc.channel else "disconnect"
             sound_path = self.get_sound_path(member.id, state)
-
+            
             # bot join connect which takes a while internally
             if guild.me == member:
 
@@ -108,9 +108,7 @@ class Sounds(commands.Cog):
                     if sorted(member_ids) == sorted(ids):
                         return
 
-            print(state)
             if not vc.is_playing():
-                print("played")
                 sound = discord.FFmpegPCMAudio(source=sound_path)
                 source = discord.PCMVolumeTransformer(sound, 0.18)
                 vc.play(source=source)

@@ -42,7 +42,7 @@ class Julia(commands.Cog):
         channel_id = self.bot.config.get(ctx.guild.id, 'lobby')
         channel = self.bot.get_channel(channel_id)
         if not channel:
-            msg = "Der Server hat keinen aktiven Move Channel"
+            msg = "Der Server hat keine Lobby"
             return await ctx.send(msg)
 
         for member in channel.members:
@@ -50,8 +50,9 @@ class Julia(commands.Cog):
                 await member.move_to(own_channel)
             except discord.Forbidden:
                 continue
-            finally:
-                await ctx.message.delete()
+
+        await ctx.message.delete()
+
 
     @commands.command(name="mirror")
     async def mirror_(self, ctx, member: discord.Member = None):

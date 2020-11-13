@@ -10,8 +10,8 @@ class Listen(commands.Cog):
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
-        msg = None
         error = getattr(error, 'original', error)
+        msg = None
 
         if isinstance(error, commands.CommandNotFound):
             count = ctx.invoked_with.count(ctx.prefix)
