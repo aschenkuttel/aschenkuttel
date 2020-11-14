@@ -23,8 +23,6 @@ class Sounds(commands.Cog):
                 continue
             elif channel.id in ignored:
                 continue
-            elif not channel.members:
-                continue
             else:
                 visible_channel.append(channel)
 
@@ -62,6 +60,9 @@ class Sounds(commands.Cog):
         # member joins in channel
         if after.channel is not None:
             most_people = self.get_fullest_channel(guild)
+
+            if most_people is None:
+                return
 
             same_channel = after.channel == most_people
             not_inside = guild.me not in most_people.members
