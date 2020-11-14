@@ -7,9 +7,10 @@ import utils
 import json
 import os
 
+path = os.path.dirname(__file__)
 logger = logging.getLogger('discord')
 logger.setLevel(logging.DEBUG)
-handler = logging.FileHandler(filename='data/discord.log', encoding='utf-8', mode='w')
+handler = logging.FileHandler(filename=f'{path}/data/discord.log', encoding='utf-8', mode='w')
 handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
 logger.addHandler(handler)
 
@@ -17,7 +18,7 @@ logger.addHandler(handler)
 class Aschenkuttel(commands.Bot):
     def __init__(self, *args, **kwargs):
         super().__init__(command_prefix=self.prefix, *args, **kwargs)
-        self.path = os.path.dirname(__file__)
+        self.path = path
         self.add_check(self.global_check)
         self.config = utils.ConfigHandler(self)
         self.msg = json.load(open(f"{self.path}/data/msg.json"))
