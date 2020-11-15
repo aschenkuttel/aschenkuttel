@@ -15,13 +15,9 @@ class Starboard(commands.Cog):
         data = {int(key): value for key, value in cache.items()}
         self._starred = data
 
-    async def star_message(self, message):
-        channel_id = self.bot.config.get(message.guild.id, 'starboard')
-        channel = self.bot.get_channel(channel_id)
-        if not channel:
-            return
-
+    async def star_message(self, message, channel):
         starred = self._starred.get(message.guild.id)
+
         if starred is None:
             self._starred[message.guild.id] = {}
             starred = self._starred[message.guild.id]
@@ -57,7 +53,7 @@ class Starboard(commands.Cog):
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
         guild = self.bot.get_guild(payload.guild_id)
-        if not guild:
+        if guild is None:
             return
 
         if payload.emoji.name == "⭐":
@@ -68,19 +64,22 @@ class Starboard(commands.Cog):
                 if payload.message_id == m.id:
                     message = m
                     break
+
             else:
                 channel = self.bot.get_channel(payload.channel_id)
                 message = await channel.fetch_message(payload.message_id)
 
-            channel_id = self.bot.config.get(payload.guild_id, 'starboard')
+            channel_id = self.bot.config.get('starboard', guild.id)
             channel = self.bot.get_channel(channel_id)
 
-            if message.channel == channel:
+            if channel is None or channel == message.channel:
                 return
 
+            limit = self.bot.config.get('starcount', guild.id, default=5)
+
             for reaction in message.reactions:
-                if reaction.emoji == "⭐" and reaction.count > 0:
-                    await self.star_message(message)
+                if reaction.emoji == "⭐" and reaction.count > limit:
+                    await self.star_message(message, channel)
 
 
 def setup(bot):

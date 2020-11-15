@@ -84,6 +84,12 @@ class Config(commands.Cog):
             msg = f"{ctx.channel.mention} ist nun das Starboard"
             await ctx.send(embed=utils.embed(msg))
 
+    @set.command(name="starcount")
+    async def starcount_(self, ctx, amount: int):
+        self.config.store('starcount', amount, ctx.guild.id)
+        msg = f"Eine Nachricht muss nun {amount} Sterne erreichen um angepinnt zu werden"
+        await ctx.send(embed=utils.embed(msg))
+
     @commands.group(invoke_without_command=True, name="remove")
     async def remove_(self, ctx, target):
         pronoun = self.german.get(target)
