@@ -88,6 +88,8 @@ class Sounds(commands.Cog):
             return
 
         if len(vc.channel.members) == 1:
+            print(vc.channel.members)
+            print("disconnected because I was alone :(")
             await vc.disconnect()
             return
 

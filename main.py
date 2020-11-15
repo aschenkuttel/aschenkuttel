@@ -4,7 +4,6 @@ import discord
 import aiohttp
 import logging
 import utils
-import json
 import os
 
 path = os.path.dirname(__file__)
@@ -21,9 +20,10 @@ class Aschenkuttel(commands.Bot):
         self.path = path
         self.add_check(self.global_check)
         self.config = utils.ConfigHandler(self)
-        self.msg = json.load(open(f"{self.path}/data/msg.json"))
-        self.activity = discord.Activity(type=2, name="187 Straßenbande")
+        self.activity = discord.Activity(type=2, name="Atilla Hildemann")
+        self.default_prefix = default_prefix
         self.remove_command("help")
+        self.markov_cache = {}
         self.session = None
         self.cog_setup()
 
@@ -46,10 +46,10 @@ class Aschenkuttel(commands.Bot):
 
     async def prefix(self, _, message):
         if message.guild is None:
-            return default_prefix
+            return self.default_prefix
 
         prefix = self.config.get('prefix', message.guild.id)
-        return prefix or default_prefix
+        return prefix or self.default_prefix
 
     def cog_setup(self):
         for file in cogs:

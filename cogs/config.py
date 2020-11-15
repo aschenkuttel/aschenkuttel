@@ -116,8 +116,8 @@ class Config(commands.Cog):
             msg = base.format(pronoun, name)
             await ctx.send(embed=utils.embed(msg, error=not response))
 
-    @commands.group(name="enable", aliases=["disable"])
-    async def enable_(self, ctx, feature):
+    @commands.group(name="enable", aliases=["disable"], invoke_without_command=True)
+    async def enable(self, ctx, feature):
         action = ctx.invoked_with.lower()
         name = self.features.get(feature)
 
@@ -127,7 +127,7 @@ class Config(commands.Cog):
 
         else:
             current = self.config.get(feature, ctx.guild.id)
-            if action == "enable" and current or action == "disable" and not current:
+            if (action == 'enable') is current:
                 cur = "aktiv" if current else "inaktiv"
                 msg = f"Die {name} sind bereits `{cur}`"
                 await ctx.send(embed=utils.embed(msg, error=True))
@@ -137,6 +137,22 @@ class Config(commands.Cog):
                 new_action = "aktiv" if not current else "inaktiv"
                 msg = f"Die {name} sind nun {new_action}"
                 await ctx.send(embed=utils.embed(msg))
+
+    @enable.command(name="logging")
+    async def logging_(self, ctx):
+        action = ctx.invoked_with.lower()
+        current = self.config.get('logging', ctx.author.id)
+
+        if (action == 'enable') is current:
+            name = "aktiviert" if current is True else "deaktiviert"
+            msg = f"Das Archivieren deiner Nachrichten ist bereits {name}..."
+            await ctx.send(embed=utils.embed(msg))
+
+        else:
+            self.config.store('logging', not current, ctx.author.id)
+            name = "aktiviert" if not current is True else "deaktiviert"
+            msg = f"Das Archivieren deiner Nachrichten ist nun {name}"
+            await ctx.send(embed=utils.embed(msg))
 
     @commands.group(name="hide", invoke_without_command=True)
     async def hide(self, ctx, channel_id: int):
