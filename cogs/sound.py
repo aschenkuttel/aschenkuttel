@@ -30,7 +30,7 @@ class Sounds(commands.Cog):
             return len([m for m in c.members if not m.bot])
 
         listed = sorted(visible_channel, key=key, reverse=True)
-        return listed[0] if listed else None
+        return listed[0] if listed and listed[0].members else None
 
     def get_sound_path(self, user_id, state):
         path = f"{self.bot.path}/data/{state}/{user_id}.mp3"
@@ -74,6 +74,7 @@ class Sounds(commands.Cog):
 
                 if vc is None:
                     await most_people.connect()
+
                 else:
                     member_ids = [m.id for m in before.channel.members]
                     member_ids.append(member.id)
@@ -84,10 +85,10 @@ class Sounds(commands.Cog):
 
         # if after channel is None (leave) looks if its connected and the only
         # one in the channel and leaves if since we handle channel moves above
-        if vc is None:
+        elif vc is None:
             return
 
-        if len(vc.channel.members) == 1:
+        elif len(vc.channel.members) == 1:
             print(vc.channel.members)
             print("disconnected because I was alone :(")
             await vc.disconnect()
@@ -97,7 +98,7 @@ class Sounds(commands.Cog):
             state = "connect" if after.channel == vc.channel else "disconnect"
             sound_path = self.get_sound_path(member.id, state)
             
-            # bot join connect which takes a while internally
+            # bot join connect which seems to take a while internally
             if guild.me == member:
 
                 if before.channel is None:

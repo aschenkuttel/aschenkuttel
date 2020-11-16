@@ -78,7 +78,7 @@ class Starboard(commands.Cog):
             limit = self.bot.config.get('starcount', guild.id, default=5)
 
             for reaction in message.reactions:
-                if reaction.emoji == "⭐" and reaction.count > limit:
+                if reaction.emoji == "⭐" and reaction.count >= limit:
                     await self.star_message(message, channel)
 
 

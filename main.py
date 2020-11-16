@@ -14,6 +14,10 @@ handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(me
 logger.addHandler(handler)
 
 
+intents = discord.Intents.default()
+intents.members = True
+
+
 class Aschenkuttel(commands.Bot):
     def __init__(self, *args, **kwargs):
         super().__init__(command_prefix=self.prefix, *args, **kwargs)
@@ -60,5 +64,5 @@ class Aschenkuttel(commands.Bot):
                 print(f"module {file} not found")
 
 
-self = Aschenkuttel(case_insensitive=True)
+self = Aschenkuttel(intents=intents, case_insensitive=True)
 self.run(TOKEN)

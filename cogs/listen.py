@@ -10,6 +10,10 @@ class Listen(commands.Cog):
         self.bot = bot
         self.save_markov.start()
 
+    def cog_unload(self):
+        print("call")
+        self.save_markov.cancel()
+
     @tasks.loop(minutes=5)
     async def save_markov(self):
         path = f"{self.bot.path}/data/markov.json"
@@ -24,7 +28,6 @@ class Listen(commands.Cog):
 
         json.dump(cache, open(path, mode='w', encoding='utf-8'))
         self.bot.markov_cache.clear()
-        print("Saved Markov")
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -42,6 +45,9 @@ class Listen(commands.Cog):
         # if log is False:
         #     return
 
+        if len(message.content.split()) < 2:
+            return
+        
         try:
             cache = self.bot.markov_cache[message.author.id]
         except KeyError:
