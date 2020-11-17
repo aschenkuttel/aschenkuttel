@@ -1,5 +1,8 @@
+import asyncio
+
 from data.secret import TOKEN, cogs, default_prefix
 from discord.ext import commands
+import aiosqlite
 import discord
 import aiohttp
 import logging
@@ -13,7 +16,6 @@ handler = logging.FileHandler(filename=f'{path}/data/discord.log', encoding='utf
 handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
 logger.addHandler(handler)
 
-
 intents = discord.Intents.default()
 intents.members = True
 
@@ -26,16 +28,36 @@ class Aschenkuttel(commands.Bot):
         self.config = utils.ConfigHandler(self)
         self.activity = discord.Activity(type=2, name="Atilla Hildemann")
         self.default_prefix = default_prefix
+        self._lock = asyncio.Event()
         self.remove_command("help")
         self.markov_cache = {}
         self.session = None
+        self.db = None
         self.cog_setup()
 
     async def on_ready(self):
-        if not self.session:
+        if self.session is None:
             self.session = aiohttp.ClientSession(loop=self.loop)
 
+        if self.db is None:
+            db_path = f"{self.path}/data/database.db"
+            self.db = await aiosqlite.connect(db_path)
+            await self.setup()
+
+        self._lock.set()
         print("Es war einmal vor langer Zeit...")
+
+    async def setup(self):
+        query = 'CREATE TABLE IF NOT EXISTS reminder' \
+                '(id INTEGER PRIMARY KEY AUTOINCREMENT,' \
+                ' author_id BIGINT, channel_id BIGINT,' \
+                ' creation BIGINT, expiration BIGINT,' \
+                ' reason TEXT)'
+        await self.db.execute(query)
+        await self.db.commit()
+
+    async def wait_until_unlocked(self):
+        return await self._lock.wait()
 
     @staticmethod
     async def global_check(ctx):
