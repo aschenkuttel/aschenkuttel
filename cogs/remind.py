@@ -5,6 +5,7 @@ import asyncio
 import discord
 import logging
 
+
 logger = logging.getLogger('self')
 
 
@@ -77,8 +78,7 @@ class Reminder(commands.Cog):
 
             if not self.current_reminder:
                 query = 'SELECT * FROM reminder ORDER BY expiration'
-                cursor = await self.bot.db.execute(query)
-                data = await cursor.fetchone()
+                data = await self.bot.fetchrow(query)
 
                 if data is not None:
                     self.current_reminder = Timer(self.bot, data)
@@ -91,8 +91,7 @@ class Reminder(commands.Cog):
                 await asyncio.sleep(seconds)
 
                 query = "DELETE FROM reminder WHERE id = $1"
-                await self.bot.db.execute(query, (self.current_reminder.id,))
-                await self.bot.db.commit()
+                await self.bot.execute(query, self.current_reminder.id)
 
                 if seconds > -60:
                     logger.debug(f"reminder {self.current_reminder.id}: send message")
@@ -171,8 +170,7 @@ class Reminder(commands.Cog):
     @remind.command(name="list")
     async def list_(self, ctx):
         query = 'SELECT * FROM reminder WHERE author_id = $1 ORDER BY expiration'
-        cursor = await self.bot.db.execute(query, (ctx.author.id,))
-        data = await cursor.fetchall()
+        data = await self.bot.fetch(query, ctx.author.id)
 
         if not data:
             msg = "Du hast keine aktiven Reminder"
@@ -193,8 +191,7 @@ class Reminder(commands.Cog):
     async def remove_(self, ctx, reminder_id: int):
         query = 'DELETE FROM reminder WHERE author_id = $1 AND id = $2'
 
-        cursor = await self.bot.db.execute(query, (ctx.author.id, reminder_id))
-        response = await cursor.fetchone()
+        response = await self.bot.fetchrow(query, ctx.author.id, reminder_id)
         await self.bot.db.commit()
 
         if response == "DELETE 0":
@@ -210,8 +207,7 @@ class Reminder(commands.Cog):
     async def clear_(self, ctx):
         query = 'DELETE FROM reminder WHERE author_id = $1 RETURNING id'
 
-        cursor = await self.bot.db.execute(query, (ctx.author.id,))
-        deleted_rows = await cursor.fetchall()
+        deleted_rows = await self.bot.fetch(query, ctx.author.id)
         await self.bot.db.commit()
 
         if not deleted_rows:

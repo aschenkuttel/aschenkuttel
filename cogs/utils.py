@@ -1,9 +1,8 @@
 from discord.ext import commands
 import discord
-import random
 
 
-class Julia(commands.Cog):
+class Utils(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
@@ -17,13 +16,15 @@ class Julia(commands.Cog):
             own_channel = ctx.author.voice.channel
         except AttributeError:
             msg = "Du befindest dich nicht in einem Voice Channel"
-            return await ctx.send(msg)
+            await ctx.send(msg)
+            return
 
         channel_id = self.bot.config.get(ctx.guild.id, 'lobby')
         channel = self.bot.get_channel(channel_id)
         if not channel:
             msg = "Der Server hat keine Lobby"
-            return await ctx.send(msg)
+            await ctx.send(msg)
+            return
 
         for member in channel.members:
             try:
@@ -32,7 +33,6 @@ class Julia(commands.Cog):
                 continue
 
         await ctx.message.delete()
-
 
     @commands.command(name="mirror")
     async def mirror_(self, ctx, member: discord.Member = None):
@@ -62,4 +62,4 @@ class Julia(commands.Cog):
 
 
 def setup(bot):
-    bot.add_cog(Julia(bot))
+    bot.add_cog(Utils(bot))

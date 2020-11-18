@@ -1,6 +1,6 @@
-from utils import get_seconds_till, IconHandler
+from data.credentials import API_KEY
+from utils import get_seconds_till
 from discord.ext import commands
-from data.secret import API_KEY
 import asyncio
 import discord
 
@@ -10,7 +10,6 @@ class Icon(commands.Cog):
         self.bot = bot
         self.url = "https://api.unsplash.com/photos/random"
         self.bot.loop.create_task(self.guild_icon_loop())
-        self.archive = IconHandler(self.bot)
 
     async def guild_icon_loop(self):
         while not self.bot.is_closed():

@@ -1,37 +1,50 @@
 from discord.ext import commands, tasks
+from utils import DefaultDict
 import traceback
+import logging
 import utils
-import json
 import sys
+
+logger = logging.getLogger('self')
 
 
 class Listen(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.markov_cache = DefaultDict(list)
         self.save_markov.start()
 
     def cog_unload(self):
-        print("call")
         self.save_markov.cancel()
 
-    @tasks.loop(minutes=5)
+    @tasks.loop(minutes=1)
     async def save_markov(self):
-        path = f"{self.bot.path}/data/markov.json"
-        str_cache = json.load(open(path, encoding='utf-8'))
-        cache = {int(k): v for k, v in str_cache.items()}
+        await self.bot.wait_until_unlocked()
+        query = 'INSERT INTO logging (guild_id, channel_id,' \
+                'message_id, author_id, date, content)' \
+                'VALUES ($1, $2, $3, $4, $5, $6)'
 
-        for user_id, messages in self.bot.markov_cache.items():
-            if user_id in cache:
-                cache[user_id].extend(messages)
-            else:
-                cache[user_id] = messages
+        counter = 0
+        for user_id, messages in self.markov_cache.items():
+            arguments = []
 
-        json.dump(cache, open(path, mode='w', encoding='utf-8'))
-        self.bot.markov_cache.clear()
+            for msg in messages:
+                batch = [msg.guild.id, msg.channel.id, msg.id,
+                         msg.author.id, msg.created_at, msg.content]
+                arguments.append(batch)
+
+            await self.bot.db.executemany(query, arguments)
+            counter += len(messages)
+
+        await self.bot.db.commit()
+        logger.debug(f'{counter} messages added to archive')
 
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot is True:
+            return
+
+        elif message.guild is None:
             return
 
         prefix = self.bot.config.get('prefix', message.guild.id)
@@ -45,15 +58,12 @@ class Listen(commands.Cog):
         # if log is False:
         #     return
 
-        if len(message.content.split()) < 2:
+        words = message.content.split()
+        if len(words) < 2:
             return
-        
-        try:
-            cache = self.bot.markov_cache[message.author.id]
-        except KeyError:
-            cache = self.bot.markov_cache[message.author.id] = []
 
-        cache.append(message.content)
+        pack = self.markov_cache[message.author.id]
+        pack.append(message)
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
@@ -78,10 +88,10 @@ class Listen(commands.Cog):
 
         if msg:
             await ctx.send(embed=utils.embed(msg, error=True))
+            logger.debug(f"expected error with {ctx.message.content}: {error}")
 
         else:
-            print(f"Command Message: {ctx.message.content}")
-            print("Command Error:")
+            logger.debug(f"error with {ctx.message.content}: {error}")
             traceback.print_exception(type(error), error, error.__traceback__, file=sys.stderr)
 
 

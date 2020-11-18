@@ -1,54 +1,61 @@
 from discord.ext import commands
+from utils import DefaultDict
 import discord
-import json
 
 
 class Starboard(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.path = f"{self.bot.path}/data/starred.json"
-        self._starred = {}
-        self.star_setup()
+        self.star_cache = DefaultDict(list)
+        self.bot.loop.create_task(self.star_setup())
 
-    def star_setup(self):
-        cache = json.load(open(self.path))
-        data = {int(key): value for key, value in cache.items()}
-        self._starred = data
+    async def star_setup(self):
+        await self.bot.wait_until_unlocked()
+        query = 'SELECT guild_id, message_id FROM starboard ORDER BY guild_id'
+        cache = await self.bot.fetch(query)
+
+        for guild_id, message_id in cache:
+            pack = self.star_cache[guild_id]
+            pack.append(message_id)
 
     async def star_message(self, message, channel):
-        starred = self._starred.get(message.guild.id)
-
-        if starred is None:
-            self._starred[message.guild.id] = {}
-            starred = self._starred[message.guild.id]
-
-        elif str(message.id) in starred:
-            return
-
         embed = discord.Embed(description=message.content)
         embed.colour = discord.Color.gold()
+
+        arguments = [message.guild.id, message.channel.id,
+                     message.id, message.author.id,
+                     message.created_at, message.content, None]
+
         if message.embeds:
             data = message.embeds[0]
             if data.type == 'image':
                 embed.set_image(url=data.url)
+                arguments[6] = data.url
 
         if message.attachments:
             file = message.attachments[0]
+            arguments[6] = file.url
+
             if file.url.lower().endswith(('png', 'jpeg', 'jpg', 'gif', 'webp')):
                 embed.set_image(url=file.url)
 
             else:
-                embed.add_field(name='Attachment', value=f'[{file.filename}]({file.url})',
-                                inline=False)
+                embed.add_field(name='Attachment', inline=False,
+                                value=f'[{file.filename}]({file.url})')
 
-        embed.add_field(name='Original', value=f'[Klick mich!]({message.jump_url})', inline=False)
+        embed.add_field(name='Original', inline=False,
+                        value=f'[Klick mich!]({message.jump_url})')
+
         embed.set_author(name=message.author.display_name,
                          icon_url=message.author.avatar_url_as(format='png'))
-        embed.timestamp = message.created_at
-        msg = await channel.send(embed=embed)
 
-        starred[str(message.id)] = msg.id
-        json.dump(self._starred, open(self.path, 'w'))
+        embed.timestamp = message.created_at
+        await channel.send(embed=embed)
+
+        query = 'INSERT INTO starboard (guild_id, channel_id,' \
+                'message_id, author_id, date, content, attachment) ' \
+                'VALUES ($1, $2, $3, $4, $5, $6, $7)'
+        await self.bot.execute(query, *arguments)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
@@ -57,7 +64,9 @@ class Starboard(commands.Cog):
             return
 
         if payload.emoji.name == "⭐":
-            if payload.message_id in self._starred:
+            stars = self.star_cache[guild.id]
+
+            if payload.message_id in stars:
                 return
 
             for m in self.bot.cached_messages:
