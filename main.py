@@ -1,4 +1,4 @@
-from data.credentials import TOKEN, cogs, default_prefix
+from data.credentials import TOKEN, default_prefix
 from discord.ext import commands
 import aiosqlite
 import discord
@@ -7,6 +7,18 @@ import asyncio
 import logging
 import utils
 import os
+
+default_cogs = [
+    "admin",
+    "config",
+    "icon",
+    "listen",
+    "remind",
+    "self",
+    "sound",
+    "star",
+    "utils"
+]
 
 
 class Aschenkuttel(commands.Bot):
@@ -104,7 +116,7 @@ class Aschenkuttel(commands.Bot):
             logger.addHandler(handler)
 
     def setup_cogs(self):
-        for file in cogs:
+        for file in default_cogs:
             try:
                 cog_path = f"cogs.{file}"
                 self.load_extension(cog_path)
