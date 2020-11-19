@@ -28,7 +28,7 @@ class ConfigHandler:
 
     def get(self, key, guild_id, default=None):
         config = self._config.get(guild_id, {})
-        item = config.get(key) or default
+        item = config.get(key, default=default)
         return item
 
     def remove(self, key, guild_id):
