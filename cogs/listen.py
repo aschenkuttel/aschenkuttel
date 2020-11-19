@@ -12,13 +12,13 @@ class Listen(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.markov_cache = DefaultDict(list)
-        self.save_markov.start()
+        self.push_messages.start()
 
     def cog_unload(self):
-        self.save_markov.cancel()
+        self.push_messages.cancel()
 
     @tasks.loop(minutes=1)
-    async def save_markov(self):
+    async def push_messages(self):
         await self.bot.wait_until_unlocked()
         query = 'INSERT INTO logging (guild_id, channel_id,' \
                 'message_id, author_id, date, content)' \

@@ -1,7 +1,7 @@
 ## Aschenkuttel
 personal discord bot for friends
 
-##Installation
+## Installation
 1. Make sure to install a Python Version between 3.5 and 3.8
 
 2. Install the required packages with  
