@@ -142,6 +142,24 @@ class Sounds(commands.Cog):
         except FileNotFoundError:
             return f"You don't have a {state} sound"
 
+    async def wait_for(self, ctx, reply):
+        def check(m):
+            if ctx.author == m.author and ctx.channel == m.channel:
+                if m.content.lower() in ["y", "n"]:
+                    return True
+
+        try:
+            msg = await self.bot.wait_for('message', check=check, timeout=30)
+            if msg.content.lower() == "y":
+                return True
+            else:
+                msg = "Reinvoke the command without your file now and change parameters"
+                await ctx.send(msg)
+
+        except asyncio.TimeoutError:
+            await reply.edit(content="The time has expired...")
+            self.cache.pop(ctx.author.id)
+
     @commands.command(name="connect")
     async def custom_(self, ctx, begin: float = None, end: float = 5.0):
         """either sets or removes your current sound"""
@@ -173,25 +191,10 @@ class Sounds(commands.Cog):
             file = discord.File(new_file, "version.mp3")
             reply = await ctx.send(msg, file=file)
 
-            def check(m):
-                if ctx.author == m.author and ctx.channel == m.channel:
-                    if m.content.lower() in ["y", "n"]:
-                        return True
-
-            try:
-                msg = await self.bot.wait_for('message', check=check, timeout=30)
-
-                if msg.content.lower() == "y":
-                    await self.save_track(ctx, song)
-                    await ctx.send("Your connect sound has been set up")
-
-                else:
-                    msg = "Reinvoke the command without your file now and change parameters"
-                    await ctx.send(msg)
-
-            except asyncio.TimeoutError:
-                await reply.edit(content="The time has expired...")
-                self.cache.pop(ctx.author.id)
+            response = await self.wait_for(ctx, reply)
+            if response is True:
+                await self.save_track(ctx, song)
+                await ctx.send("Your connect sound has been set up")
 
         else:
             msg = await self.remove_track('connect', ctx.author.id)
@@ -228,25 +231,10 @@ class Sounds(commands.Cog):
             file = discord.File(new_file, "version.mp3")
             reply = await ctx.send(msg, file=file)
 
-            def check(m):
-                if ctx.author == m.author and ctx.channel == m.channel:
-                    if m.content.lower() in ["y", "n"]:
-                        return True
-
-            try:
-                msg = await self.bot.wait_for('message', check=check, timeout=30)
-
-                if msg.content.lower() == "y":
-                    await self.save_track(ctx, song)
-                    await ctx.send("Your disconnect sound has been set up")
-
-                else:
-                    msg = "Reinvoke the command without your file now and change parameters"
-                    await ctx.send(msg)
-
-            except asyncio.TimeoutError:
-                await reply.edit(content="The time has expired...")
-                self.cache.pop(ctx.author.id)
+            response = await self.wait_for(ctx, reply)
+            if response is True:
+                await self.save_track(ctx, song)
+                await ctx.send("Your disconnect sound has been set up")
 
         else:
             msg = await self.remove_track('disconnect', ctx.author.id)
