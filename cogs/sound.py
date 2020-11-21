@@ -127,20 +127,12 @@ class Sounds(commands.Cog):
         song.export(new_file, format='mp3')
         return song, new_file
 
-    async def save_track(self, ctx, song):
-        path = "{0.bot.path}/data/{0.invoked_with}/{0.author.id}.mp3"
-        song.export(path.format(ctx))
+    async def save_track(self, ctx, state, song):
+        raw_path = "{0.bot.path}/data/{1}/{0.author.id}.mp3"
+        path = raw_path.format(ctx, state)
+        func = functools.partial(song.export, path)
+        await self.bot.loop.run_in_executor(None, func)
         self.cache.pop(ctx.author.id)
-
-    async def remove_track(self, state, user_id):
-        try:
-            path = f"{self.bot.path}/data/disconnect/{user_id}.mp3"
-            func = functools.partial(os.remove, path)
-            await self.bot.loop.run_in_executor(None, func)
-            return f"Your {state} sound has been reset"
-
-        except FileNotFoundError:
-            return f"You don't have a {state} sound"
 
     async def wait_for(self, ctx, reply):
         def check(m):
@@ -160,11 +152,15 @@ class Sounds(commands.Cog):
             await reply.edit(content="The time has expired...")
             self.cache.pop(ctx.author.id)
 
-    @commands.command(name="connect")
-    async def custom_(self, ctx, begin: float = None, end: float = 5.0):
-        """either sets or removes your current sound"""
+    @commands.command(name="connect", aliases=["disconnect"])
+    async def connect_(self, ctx, begin: float = None, end: float = None):
+        """sets your current sound when you pass a audio file with the command
+        and state a point of time in seconds for the beginning and end of your
+        sound, if you don't pass anything your sound will be deleted"""
+        state = ctx.invoked_with.lower()
+
         if begin is not None:
-            if (end - begin) > 5:
+            if (end or 5 - begin) > 5:
                 msg = "The maximum duration is 5 seconds"
                 await ctx.send(msg)
                 return
@@ -193,52 +189,22 @@ class Sounds(commands.Cog):
 
             response = await self.wait_for(ctx, reply)
             if response is True:
-                await self.save_track(ctx, song)
-                await ctx.send("Your connect sound has been set up")
+                path = f"{self.bot.path}/data/{state}/{ctx.author.id}.mp3"
+                func = functools.partial(song.export, path)
+                await self.bot.loop.run_in_executor(None, func)
+                self.cache.pop(ctx.author.id)
+
+                await ctx.send(f"Your {state} sound has been set up")
 
         else:
-            msg = await self.remove_track('connect', ctx.author.id)
-            await ctx.send(msg)
+            try:
+                path = f"{self.bot.path}/data/{state}/{ctx.author.id}.mp3"
+                func = functools.partial(os.remove, path)
+                await self.bot.loop.run_in_executor(None, func)
+                await ctx.send(f"Your {state} sound has been reset")
 
-    @commands.command(name="disconnect")
-    async def disconnect_(self, ctx, begin: float = None, end: float = 5.0):
-        """either sets or removes your current sound"""
-        if begin is not None:
-            if (end - begin) > 5:
-                msg = "The maximum duration is 5 seconds"
-                await ctx.send(msg)
-                return
-
-            if ctx.message.attachments:
-                url = ctx.message.attachments[0].url
-
-                async with self.bot.session.get(url) as file:
-                    data = await file.read()
-                    self.cache[ctx.author.id] = data
-
-            else:
-                cached_data = self.cache.get(ctx.author.id)
-                if cached_data is None:
-                    msg = "There's nothing in cache, you need to\n" \
-                          "upload your audio file with the command"
-                    await ctx.send(msg)
-                    return
-
-            func = functools.partial(self.edit_track, data, begin, end)
-            song, new_file = await self.bot.loop.run_in_executor(None, func)
-
-            msg = "Do you want to use this version? Y/N"
-            file = discord.File(new_file, "version.mp3")
-            reply = await ctx.send(msg, file=file)
-
-            response = await self.wait_for(ctx, reply)
-            if response is True:
-                await self.save_track(ctx, song)
-                await ctx.send("Your disconnect sound has been set up")
-
-        else:
-            msg = await self.remove_track('disconnect', ctx.author.id)
-            await ctx.send(msg)
+            except FileNotFoundError:
+                await ctx.send(f"You don't have a {state} sound")
 
 
 def setup(bot):

@@ -1,16 +1,16 @@
 from discord.ext import commands
+import discord
 import utils
 
 
 class Config(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.german = {
-            'lobby': "Die",
-            'prefix': "Der",
-            'query': ["Das", "Schlagwort"],
-            'starboard': "Das",
-        }
+        self.keywords = [
+            'lobby',
+            'prefix',
+            'query',
+            'starboard']
         self.features = {'sound': "Join Sounds",
                          'icon': "Random Server Icons"}
         self.config = self.bot.config
@@ -23,101 +23,99 @@ class Config(commands.Cog):
 
     @commands.group(name="set", invoke_without_command=True)
     async def set(self, ctx):
-        msg = f"`{ctx.prefix}set <{', '.join(self.german)}>`"
+        msg = f"`{ctx.prefix}set <{', '.join(self.keywords)}>`"
         await ctx.send(embed=utils.embed(msg))
 
     @set.command(name="lobby")
-    async def lobby_(self, ctx, channel_id: int):
+    async def lobby_(self, ctx, channel: discord.VoiceChannel):
+        """sets your guilds lobby channel from which
+        the summon command move its members"""
         current_id = self.config.get('lobby', ctx.guild.id)
-        channel = self.bot.get_channel(channel_id)
         fail = True
 
-        if current_id == channel_id:
-            msg = "Dieser Channel ist bereits die aktuelle Lobby"
-
-        elif channel in ctx.guild.voice_channels:
-            self.config.store('lobby', ctx.guild.id, channel_id)
-            msg = f"{channel.mention} ist nun die aktuelle Lobby"
-            fail = False
+        if current_id == channel.id:
+            msg = "This channel is already the current lobby"
 
         else:
-            msg = "Die angegebene ID ist ungültig"
+            self.config.store('lobby', ctx.guild.id, channel.id)
+            msg = f"{channel.mention} is now the lobby"
+            fail = False
 
         await ctx.send(embed=utils.embed(msg, error=fail))
 
     @set.command(name="prefix")
     async def prefix_(self, ctx, new_prefix):
+        """sets the guilds prefix of the bot"""
         prefix = self.config.get('prefix', ctx.guild.id)
 
         if prefix == new_prefix:
-            msg = "Dieser Prefix ist bereits eingespeichert"
+            msg = "This prefix is already the current one"
             await ctx.send(embed=utils.embed(msg, error=True))
 
         else:
             self.config.store('prefix', new_prefix, ctx.guild.id)
-            msg = f"`{new_prefix}` ist nun der neue Prefix"
+            msg = f"`{new_prefix}` is now the new prefix"
             await ctx.send(embed=utils.embed(msg))
 
     @set.command(name="query")
     async def icon_(self, ctx, query):
+        """sets the icon query of your guild"""
         current_query = self.config.get('query', ctx.guild.id)
 
         if query == current_query:
-            msg = "Dieses Schlagwort ist bereits eingespeichert"
+            msg = "This keyword is already the query"
             await ctx.send(embed=utils.embed(msg, error=True))
 
         else:
             self.config.store('query', query, ctx.guild.id)
-            msg = f"`{query}` ist nun das neue Schlagwort"
+            msg = f"`{query}` is now the active query"
             await ctx.send(embed=utils.embed(msg))
 
     @set.command(name="starboard")
     async def starboard_(self, ctx):
+        """sets the starboard of your guild in
+        which starred messages will be posted"""
         channel_id = self.config.get('starboard', ctx.guild.id)
 
         if channel_id == ctx.channel.id:
-            msg = "Dieser Channel ist bereits das aktuelle Starboard"
+            msg = "This channel is already the starboard"
             await ctx.send(embed=utils.embed(msg, error=True))
 
         else:
             self.config.store('starboard', ctx.channel.id, ctx.guild.id)
-            msg = f"{ctx.channel.mention} ist nun das Starboard"
+            msg = f"{ctx.channel.mention} is now the starboard"
             await ctx.send(embed=utils.embed(msg))
 
     @set.command(name="starcount")
     async def starcount_(self, ctx, amount: int):
+        """sets the guilds limit on which messages
+        will be embedded in the guilds starboard"""
         self.config.store('starcount', amount, ctx.guild.id)
-        msg = f"Eine Nachricht muss nun {amount} Sterne erreichen um angepinnt zu werden"
+        msg = f"The messages now need {amount} stars to be pinned"
         await ctx.send(embed=utils.embed(msg))
 
     @commands.group(invoke_without_command=True, name="remove")
     async def remove_(self, ctx, target):
-        pronoun = self.german.get(target)
-
-        if pronoun is None:
-            msg = f"`{ctx.prefix}remove <{', '.join(self.german)}>`"
+        """removes on of your guilds config"""
+        if target not in self.keywords:
+            msg = f"`{ctx.prefix}remove <{', '.join(self.keywords)}>`"
             await ctx.send(embed=utils.embed(msg))
 
         else:
             response = self.config.remove(target, ctx.guild.id)
-            if isinstance(pronoun, list):
-                pronoun, name = pronoun
-
-            else:
-                name = target.capitalize()
 
             if response is None:
-                pronoun = "keine" if target == "lobby" else "kein"
-                base = "Es ist {} {} eingetragen"
+                msg = f"There's no current {target}"
 
             else:
-                base = "{} {} wurde entfernt"
+                msg = f"The {target} got removed"
 
-            msg = base.format(pronoun, name)
             await ctx.send(embed=utils.embed(msg, error=not response))
 
     @commands.group(name="enable", aliases=["disable"], invoke_without_command=True)
     async def enable(self, ctx, feature):
+        """enables or disables features like:
+        join/leave sounds or random guild icon"""
         action = ctx.invoked_with.lower()
         name = self.features.get(feature)
 
@@ -128,42 +126,21 @@ class Config(commands.Cog):
         else:
             current = self.config.get(feature, ctx.guild.id)
             if (action == 'enable') is current:
-                cur = "aktiv" if current else "inaktiv"
-                msg = f"Die {name} sind bereits `{cur}`"
+                cur_action = "active" if current else "inactive"
+                msg = f"{name} are already `{cur_action}`"
                 await ctx.send(embed=utils.embed(msg, error=True))
 
             else:
                 self.config.store(feature, not current, ctx.guild.id)
-                new_action = "aktiv" if not current else "inaktiv"
-                msg = f"Die {name} sind nun {new_action}"
+                new_action = "active" if not current else "inactive"
+                msg = f"{name} are now {new_action}"
                 await ctx.send(embed=utils.embed(msg))
 
-    @enable.command(name="logging")
-    async def logging_(self, ctx):
-        action = ctx.invoked_with.lower()
-        current = self.config.get('logging', ctx.author.id)
-
-        if (action == 'enable') is current:
-            name = "aktiviert" if current is True else "deaktiviert"
-            msg = f"Das Archivieren deiner Nachrichten ist bereits {name}..."
-            await ctx.send(embed=utils.embed(msg))
-
-        else:
-            self.config.store('logging', not current, ctx.author.id)
-            name = "aktiviert" if not current is True else "deaktiviert"
-            msg = f"Das Archivieren deiner Nachrichten ist nun {name}"
-            await ctx.send(embed=utils.embed(msg))
-
     @commands.group(name="hide", invoke_without_command=True)
-    async def hide(self, ctx, channel_id: int):
-        channel = self.bot.get_channel(channel_id)
+    async def hide(self, ctx, channel: discord.VoiceChannel):
+        """hides given channel for the join/leave sound feature"""
 
-        if channel is None:
-            msg = "Die angegebene ID ist ungültig"
-            await ctx.send(embed=utils.embed(msg, error=True))
-            return
-
-        action = "versteckt..."
+        action = "hidden now..."
         hidden_channel = self.config.get('hidden', ctx.guild.id)
 
         if hidden_channel is None:
@@ -172,20 +149,21 @@ class Config(commands.Cog):
         elif channel.id in hidden_channel:
             hidden_channel.remove(channel.id)
             self.config.save()
-            action = "wieder sichtbar..."
+            action = "visible again..."
 
         else:
             hidden_channel.append(channel.id)
             self.config.save()
 
-        msg = f"Der Channel `{channel.name}` ist nun {action}"
+        msg = f"The channel `{channel.name}` is {action}"
         await ctx.send(embed=utils.embed(msg))
 
     @hide.command(name="list")
     async def list_(self, ctx):
+        """shows all hidden channels"""
         hidden_ids = self.config.get('hidden', ctx.guild.id)
         if not hidden_ids:
-            msg = "Es sind momentan alle Channel sichtbar"
+            msg = "All channels are currently visible..."
             await ctx.send(embed=utils.embed(msg))
             return
 
@@ -201,15 +179,32 @@ class Config(commands.Cog):
         embed = utils.embed("\n".join(description))
         await ctx.send(embed=embed)
 
+    @hide.command(name="remove")
+    async def remove_(self, ctx, channel_id: int):
+        hidden_ids = self.config.get('hidden', ctx.guild.id)
+        if hidden_ids is None:
+            hidden_ids = []
+
+        try:
+            hidden_ids.remove(channel_id)
+            self.config.save()
+            msg = "The channel is visible again..."
+            await ctx.send(embed=utils.embed(msg))
+
+        except ValueError:
+            msg = "This channel was already visible..."
+            await ctx.send(embed=utils.embed(msg, error=True))
+
     @hide.command(name="clear")
     async def clear_(self, ctx):
+        """clears all hidden channels"""
         hidden_ids = self.config.get('hidden', ctx.guild.id)
 
         if hidden_ids:
             hidden_ids.clear()
             self.config.save()
 
-        msg = "Die Liste wurde erfolgreich zurückgesetzt..."
+        msg = "All channels are visible again..."
         await ctx.send(embed=utils.embed(msg))
 
 
