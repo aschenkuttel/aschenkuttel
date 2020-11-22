@@ -40,7 +40,7 @@ class Timer:
             channel = author
 
         try:
-            msg = f"**Erinnerung:** {author.mention}"
+            msg = f"**Reminder:** {author.mention}"
             await channel.send(msg, embed=embed)
             logger.debug(f"reminder {self.id}: successfull")
 
@@ -111,16 +111,18 @@ class Reminder(commands.Cog):
 
     @commands.group(name="remind", invoke_without_command=True)
     async def remind(self, ctx, *, argument: commands.clean_content):
+        """remind yourself after given time in the channel the command
+        was invoked in or privately with a reason or without"""
         args = argument.split("\n")
         time = args.pop(0)
         if args:
             reason = "\n".join(args).strip()[:self.char_limit]
         else:
-            reason = "Kein Grund angegeben"
+            reason = "No Reason"
 
         expected_date = dateparser.parse(time, settings=self.set)
         if expected_date is None:
-            msg = "Es konnte kein gültiges Zeitformat erkannt werden"
+            msg = "No valid time format"
             await ctx.send(msg)
             return
 
@@ -128,12 +130,12 @@ class Reminder(commands.Cog):
         difference = (expected_date - current_date).total_seconds()
 
         embed = discord.Embed(colour=discord.Color.green())
-        embed.description = "**Erinnerung registriert:**"
+        embed.description = "**Reminder registered:**"
         represent = expected_date.strftime(self.preset)
         embed.set_footer(text=represent)
 
         if difference < 0:
-            msg = "Der Zeitpunkt ist bereits vergangen"
+            msg = "The timestamp has already passed"
             await ctx.send(msg)
             return
 
@@ -169,11 +171,12 @@ class Reminder(commands.Cog):
 
     @remind.command(name="list")
     async def list_(self, ctx):
+        """shows all your active reminders"""
         query = 'SELECT * FROM reminder WHERE author_id = $1 ORDER BY expiration'
         data = await self.bot.fetch(query, ctx.author.id)
 
         if not data:
-            msg = "Du hast keine aktiven Reminder"
+            msg = "You don't have any active reminders"
             await ctx.send(msg)
 
         else:
@@ -183,35 +186,35 @@ class Reminder(commands.Cog):
                 date = timer.expiration.strftime(self.preset)
                 reminders.append(f"`ID {timer.id}` | **{date}**")
 
-            title = f"Deine Reminder ({len(data)} Insgesamt):"
+            title = f"Your active reminders ({len(data)} in total):"
             embed = discord.Embed(description="\n".join(reminders), title=title)
             await ctx.send(embed=embed)
 
     @remind.command(name="remove")
     async def remove_(self, ctx, reminder_id: int):
+        """removes reminder with given id"""
         query = 'DELETE FROM reminder WHERE author_id = $1 AND id = $2'
-
         response = await self.bot.fetchrow(query, ctx.author.id, reminder_id)
         await self.bot.db.commit()
 
         if response == "DELETE 0":
-            msg = "Du hast keinen Reminder mit der angegebenen ID"
+            msg = "You don't have an active reminder with that ID"
             return await ctx.send(msg)
 
         if self.current_reminder and self.current_reminder.id == reminder_id:
             self.restart()
 
-        await ctx.send("Der Reminder wurde gelöscht")
+        await ctx.send("Your reminder has been deleted")
 
     @remind.command(name="clear")
     async def clear_(self, ctx):
+        """clears all active reminders"""
         query = 'DELETE FROM reminder WHERE author_id = $1 RETURNING id'
-
         deleted_rows = await self.bot.fetch(query, ctx.author.id)
         await self.bot.db.commit()
 
         if not deleted_rows:
-            msg = "Du hast keine aktiven Reminder"
+            msg = "You don't have any active reminders"
             await ctx.send(msg)
             return
 
@@ -220,7 +223,7 @@ class Reminder(commands.Cog):
             if self.current_reminder.id in old_ids:
                 self.restart()
 
-        msg = f"Alle deine Reminder wurden gelöscht ({len(deleted_rows)})"
+        msg = f"All your active reminders have been deleted ({len(deleted_rows)})"
         await ctx.send(msg)
 
 

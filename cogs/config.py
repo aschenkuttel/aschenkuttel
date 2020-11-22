@@ -11,8 +11,9 @@ class Config(commands.Cog):
             'prefix',
             'query',
             'starboard']
-        self.features = {'sound': "Join Sounds",
-                         'icon': "Random Server Icons"}
+        self.features = [
+            'sound',
+            'icon']
         self.config = self.bot.config
 
     async def cog_check(self, ctx):
@@ -117,9 +118,8 @@ class Config(commands.Cog):
         """enables or disables features like:
         join/leave sounds or random guild icon"""
         action = ctx.invoked_with.lower()
-        name = self.features.get(feature)
 
-        if name is None:
+        if feature not in self.features:
             msg = f"`.{action} <{', '.join(self.features)}>`"
             await ctx.send(embed=utils.embed(msg, error=True))
 
@@ -127,21 +127,20 @@ class Config(commands.Cog):
             current = self.config.get(feature, ctx.guild.id)
             if (action == 'enable') is current:
                 cur_action = "active" if current else "inactive"
-                msg = f"{name} are already `{cur_action}`"
+                msg = f"The {feature} feature is already `{cur_action}`"
                 await ctx.send(embed=utils.embed(msg, error=True))
 
             else:
                 self.config.store(feature, not current, ctx.guild.id)
                 new_action = "active" if not current else "inactive"
-                msg = f"{name} are now {new_action}"
+                msg = f"The {feature} feature is now {new_action}"
                 await ctx.send(embed=utils.embed(msg))
 
     @commands.group(name="hide", invoke_without_command=True)
     async def hide(self, ctx, channel: discord.VoiceChannel):
         """hides given channel for the join/leave sound feature"""
-
-        action = "hidden now..."
         hidden_channel = self.config.get('hidden', ctx.guild.id)
+        action = "hidden now..."
 
         if hidden_channel is None:
             self.config.store('hidden', [channel.id], ctx.guild.id)
@@ -162,6 +161,7 @@ class Config(commands.Cog):
     async def list_(self, ctx):
         """shows all hidden channels"""
         hidden_ids = self.config.get('hidden', ctx.guild.id)
+
         if not hidden_ids:
             msg = "All channels are currently visible..."
             await ctx.send(embed=utils.embed(msg))
@@ -178,22 +178,6 @@ class Config(commands.Cog):
 
         embed = utils.embed("\n".join(description))
         await ctx.send(embed=embed)
-
-    @hide.command(name="remove")
-    async def remove_(self, ctx, channel_id: int):
-        hidden_ids = self.config.get('hidden', ctx.guild.id)
-        if hidden_ids is None:
-            hidden_ids = []
-
-        try:
-            hidden_ids.remove(channel_id)
-            self.config.save()
-            msg = "The channel is visible again..."
-            await ctx.send(embed=utils.embed(msg))
-
-        except ValueError:
-            msg = "This channel was already visible..."
-            await ctx.send(embed=utils.embed(msg, error=True))
 
     @hide.command(name="clear")
     async def clear_(self, ctx):

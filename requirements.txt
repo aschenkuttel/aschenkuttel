@@ -1,5 +1,5 @@
 aiosqlite
 aiohttp
-discord
+discord.py
 dateparser
 pydub

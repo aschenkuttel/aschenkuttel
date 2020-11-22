@@ -1,7 +1,7 @@
 from discord.ext import commands
 
 
-class Leah(commands.Cog):
+class Admin(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
@@ -16,4 +16,4 @@ class Leah(commands.Cog):
 
 
 def setup(bot):
-    bot.add_cog(Leah(bot))
+    bot.add_cog(Admin(bot))

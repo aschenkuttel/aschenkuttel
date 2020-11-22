@@ -11,6 +11,7 @@ import os
 default_cogs = [
     "admin",
     "config",
+    "help",
     "icon",
     "listen",
     "remind",
@@ -34,8 +35,7 @@ class Aschenkuttel(commands.Bot):
 
         self.activity = discord.Activity(type=2, name="Atilla Hildemann")
         self.add_check(self.global_check)
-        self.remove_command("help")
-
+        self.help_command = None
         self.setup_loggers()
         self.setup_cogs()
 
@@ -49,7 +49,7 @@ class Aschenkuttel(commands.Bot):
             await self.setup_tables()
 
         self._lock.set()
-        print("Es war einmal vor langer Zeit...")
+        print("Once upon a time...")
 
     async def setup_tables(self):
         reminder = 'CREATE TABLE IF NOT EXISTS reminder' \
@@ -63,12 +63,7 @@ class Aschenkuttel(commands.Bot):
                     'message_id BIGINT, author_id BIGINT,' \
                     'date TIMESTAMP, content TEXT, attachment TEXT)'
 
-        message_logs = 'CREATE TABLE IF NOT EXISTS logging' \
-                       '(guild_id BIGINT, channel_id BIGINT,' \
-                       'message_id BIGINT, author_id BIGINT,' \
-                       'date TIMESTAMP, content TEXT)'
-
-        query_pool = (reminder, starboard, message_logs)
+        query_pool = (reminder, starboard)
         for query in query_pool:
             await self.execute(query)
 
@@ -125,7 +120,9 @@ class Aschenkuttel(commands.Bot):
 
 
 intents = discord.Intents.default()
+intents.presences = False
+intents.typing = False
 intents.members = True
 
-self = Aschenkuttel(intents=intents, case_insensitive=True)
+self = Aschenkuttel(intents=intents)
 self.run(TOKEN)

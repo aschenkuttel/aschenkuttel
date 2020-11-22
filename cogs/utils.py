@@ -6,23 +6,21 @@ class Utils(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name="help")
-    async def help_me_(self, ctx):
-        await ctx.send("There is no help, we're all lost...")
-
     @commands.command(name="summon")
     async def summon_(self, ctx):
+        """summons all members from the defined
+        lobby channel into your voice channel"""
         try:
             own_channel = ctx.author.voice.channel
         except AttributeError:
-            msg = "Du befindest dich nicht in einem Voice Channel"
+            msg = "You'll have to be in a voice channel"
             await ctx.send(msg)
             return
 
         channel_id = self.bot.config.get(ctx.guild.id, 'lobby')
         channel = self.bot.get_channel(channel_id)
         if not channel:
-            msg = "Der Server hat keine Lobby"
+            msg = "This guild has no registered lobby"
             await ctx.send(msg)
             return
 
@@ -36,27 +34,32 @@ class Utils(commands.Cog):
 
     @commands.command(name="mirror")
     async def mirror_(self, ctx, member: discord.Member = None):
-        url = member.avatar_url if member else ctx.author.avatar_url
+        """displays the discord avatar of a guild member
+        or yourself if no member passed in the arguments"""
+        member = member or ctx.author
         embed = discord.Embed()
-        embed.set_image(url=url)
+        embed.set_image(url=member.avatar_url)
         await ctx.send(embed=embed)
 
     @commands.command(name="icon")
     async def icon_(self, ctx):
+        """displays the guilds server icon"""
         embed = discord.Embed(color=discord.Color.gold())
         embed.set_image(url=ctx.guild.icon_url)
         await ctx.send(embed=embed)
 
-    @commands.command(name="profile", aliases=["ausweis"])
+    @commands.command(name="profile")
     async def profile_(self, ctx, member: discord.Member = None):
+        """gives some basic stats about a guild member
+        or yourself if no member passed in the arguments"""
         member = member or ctx.author
         creation_date = member.created_at.strftime("%d.%m.%Y")
-        desc = f"**Spitzname:** {member.display_name}\n" \
-               f"**Höchste Rolle:** {member.top_role}\n" \
-               f"**Account erstellt am:** {creation_date}"
+        desc = f"**Nickname:** {member.display_name}\n" \
+               f"**Highest Role:** {member.top_role}\n" \
+               f"**Account created at:** {creation_date}"
         embed = discord.Embed(description=desc, color=member.colour)
         date = member.joined_at.strftime("%d.%m.%Y - %H:%M:%S")
-        embed.set_footer(text=f"Mitglied seit {date}")
+        embed.set_footer(text=f"Member since {date}")
         embed.set_author(name=member.name, icon_url=member.avatar_url)
         await ctx.send(embed=embed)
 

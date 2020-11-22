@@ -154,9 +154,10 @@ class Sounds(commands.Cog):
 
     @commands.command(name="connect", aliases=["disconnect"])
     async def connect_(self, ctx, begin: float = None, end: float = None):
-        """sets your current sound when you pass a audio file with the command
-        and state a point of time in seconds for the beginning and end of your
-        sound, if you don't pass anything your sound will be deleted"""
+        """sets your current sound when you pass an audio file
+        with the command and state a point of time in seconds
+        for the beginning and end of your sound, if you don't
+        pass anything your sound will be deleted"""
         state = ctx.invoked_with.lower()
 
         if begin is not None:

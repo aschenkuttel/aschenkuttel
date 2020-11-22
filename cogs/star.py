@@ -44,7 +44,7 @@ class Starboard(commands.Cog):
                                 value=f'[{file.filename}]({file.url})')
 
         embed.add_field(name='Original', inline=False,
-                        value=f'[Klick mich!]({message.jump_url})')
+                        value=f'[Jump Url]({message.jump_url})')
 
         embed.set_author(name=message.author.display_name,
                          icon_url=message.author.avatar_url_as(format='png'))
@@ -52,11 +52,12 @@ class Starboard(commands.Cog):
         embed.timestamp = message.created_at
         await channel.send(embed=embed)
 
+        self.star_cache[message.guild.id].append(message.id)
         query = 'INSERT INTO starboard (guild_id, channel_id,' \
                 'message_id, author_id, date, content, attachment) ' \
                 'VALUES ($1, $2, $3, $4, $5, $6, $7)'
         await self.bot.execute(query, *arguments)
-
+        
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
         guild = self.bot.get_guild(payload.guild_id)

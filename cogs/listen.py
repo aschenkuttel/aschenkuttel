@@ -11,59 +11,6 @@ logger = logging.getLogger('self')
 class Listen(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.markov_cache = DefaultDict(list)
-        self.push_messages.start()
-
-    def cog_unload(self):
-        self.push_messages.cancel()
-
-    @tasks.loop(minutes=1)
-    async def push_messages(self):
-        await self.bot.wait_until_unlocked()
-        query = 'INSERT INTO logging (guild_id, channel_id,' \
-                'message_id, author_id, date, content)' \
-                'VALUES ($1, $2, $3, $4, $5, $6)'
-
-        counter = 0
-        for user_id, messages in self.markov_cache.items():
-            arguments = []
-
-            for msg in messages:
-                batch = [msg.guild.id, msg.channel.id, msg.id,
-                         msg.author.id, msg.created_at, msg.content]
-                arguments.append(batch)
-
-            await self.bot.db.executemany(query, arguments)
-            counter += len(messages)
-
-        await self.bot.db.commit()
-        logger.debug(f'{counter} messages added to archive')
-
-    @commands.Cog.listener()
-    async def on_message(self, message):
-        if message.author.bot is True:
-            return
-
-        elif message.guild is None:
-            return
-
-        prefix = self.bot.config.get('prefix', message.guild.id)
-        if prefix is None:
-            prefix = self.bot.default_prefix
-
-        if message.content.startswith(prefix):
-            return
-
-        # log = self.bot.config.get('logging', message.author.id)
-        # if log is False:
-        #     return
-
-        words = message.content.split()
-        if len(words) < 2:
-            return
-
-        pack = self.markov_cache[message.author.id]
-        pack.append(message)
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
@@ -75,13 +22,19 @@ class Listen(commands.Cog):
             if len(ctx.invoked_with) == count:
                 return
 
-            msg = f"Der Command `{ctx.invoked_with}` existiert nicht"
+            msg = f"legit no clue what `{ctx.invoked_with}` should be"
 
         elif isinstance(error, commands.NoPrivateMessage):
-            msg = "Sorry, ich hab einen Freund..."
+            msg = "sorry I have a boyfriend..."
 
         elif isinstance(error, commands.NotOwner):
-            msg = "Diesen Command darfst du leider nicht benutzen :/"
+            msg = "sorry but you're not allowed to use this"
+
+        elif isinstance(error, commands.MissingPermissions):
+            msg = "sorry but you don't have the permissions for that"
+
+        elif isinstance(error, commands.ChannelNotFound):
+            msg = "The ID you passed is invalid"
 
         elif isinstance(error, commands.BadArgument):
             msg = str(error)
