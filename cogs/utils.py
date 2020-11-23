@@ -17,9 +17,10 @@ class Utils(commands.Cog):
             await ctx.send(msg)
             return
 
-        channel_id = self.bot.config.get(ctx.guild.id, 'lobby')
+        channel_id = self.bot.config.get('lobby', ctx.guild.id)
         channel = self.bot.get_channel(channel_id)
-        if not channel:
+
+        if channel is None:
             msg = "This guild has no registered lobby"
             await ctx.send(msg)
             return

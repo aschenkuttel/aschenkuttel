@@ -35,10 +35,10 @@ class Config(commands.Cog):
         fail = True
 
         if current_id == channel.id:
-            msg = "This channel is already the current lobby"
+            msg = "This channel is already the lobby"
 
         else:
-            self.config.store('lobby', ctx.guild.id, channel.id)
+            self.config.store('lobby', channel.id, ctx.guild.id)
             msg = f"{channel.mention} is now the lobby"
             fail = False
 
