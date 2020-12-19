@@ -64,10 +64,12 @@ class Sounds(commands.Cog):
         if after.channel is not None:
             most_people = self.get_fullest_channel(guild)
 
-            same_channel = after.channel == most_people
-            not_inside = guild.me not in most_people.members
+            if most_people is None and len(vc.channel.members) == 1:
+                logger.debug(f'disconnected from {vc.channel}')
+                await vc.disconnect()
+                return
 
-            if same_channel and not_inside:
+            if after.channel == most_people and guild.me not in most_people.members:
                 logger.debug(f'connecting to channel {most_people}')
                 self.lock.append(guild)
                 await asyncio.sleep(1)
@@ -77,8 +79,7 @@ class Sounds(commands.Cog):
                     await most_people.connect()
 
                 else:
-                    member_ids = [m.id for m in before.channel.members]
-                    member_ids.append(member.id)
+                    member_ids = [m.id for m in after.channel.members]
                     self.cache[guild] = member_ids
                     await vc.move_to(most_people)
 

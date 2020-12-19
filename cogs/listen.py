@@ -1,5 +1,4 @@
-from discord.ext import commands, tasks
-from utils import DefaultDict
+from discord.ext import commands
 import traceback
 import logging
 import utils
