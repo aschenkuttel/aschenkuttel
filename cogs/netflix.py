@@ -20,7 +20,7 @@ class Movie:
             self.title = unescape(entry['title'])
             self.image_url = entry['image']
             self.description = unescape(entry['synopsis'])
-            self.rating = float(entry['rating'])
+            self.rating = float(entry['rating'] or 0)
             self.year = int(entry['released'])
             self.runtime = entry['runtime']
             self.seconds = input_to_seconds(self.runtime)
@@ -49,7 +49,7 @@ class Netflix(commands.Cog):
         self.archive = deque(maxlen=10)
         self.refresh_movies.start()
 
-    @tasks.loop(hours=24)
+    @tasks.loop(hours=48)
     async def refresh_movies(self):
         await self.bot.wait_until_unlocked()
 
@@ -64,7 +64,7 @@ class Netflix(commands.Cog):
         down = "downloadable"
         now = datetime.datetime.now()
         params = {
-            "q": f"-!1990,{now.year}-!3,5-!6,10-!0-!Movie-!Any-!Any-!gt100-!{down}",
+            "q": f"-!1990,{now.year}-!0,5-!0,10-!0-!Movie-!Any-!Any-!gt0-!{down}",
             "t": "ns",
             "cl": "39",  # German Code
             "st": "adv",

@@ -124,7 +124,10 @@ def input_to_seconds(user_input):
     seconds_per_unit = {"s": 1, "m": 60, "h": 3600}
     matches = re.findall(r'\d+\w', user_input)
     for match in matches:
-        sec = seconds_per_unit[match[-1]]
-        seconds += int(match[:-1]) * sec
+        if match.isdigit():
+            seconds += int(match)
+        else:
+            sec = seconds_per_unit[match[-1]]
+            seconds += int(match[:-1]) * sec
 
     return seconds
