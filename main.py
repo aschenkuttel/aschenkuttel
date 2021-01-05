@@ -14,11 +14,12 @@ default_cogs = [
     "help",
     "icon",
     "listen",
+    "misc",
+    "netflix",
     "remind",
     "self",
     "sound",
     "star",
-    "utils"
 ]
 
 
@@ -63,7 +64,13 @@ class Aschenkuttel(commands.Bot):
                     'message_id BIGINT, author_id BIGINT,' \
                     'date TIMESTAMP, content TEXT, attachment TEXT)'
 
-        query_pool = (reminder, starboard)
+        movies = 'CREATE TABLE IF NOT EXISTS movies' \
+                 '(id BIGINT PRIMARY KEY, title TEXT,' \
+                 'image_url TEXT, description TEXT, ' \
+                 'rating FLOAT, year SMALLINT, ' \
+                 'runtime INT, seconds INT)'
+
+        query_pool = (reminder, starboard, movies)
         for query in query_pool:
             await self.execute(query)
 

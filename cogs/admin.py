@@ -12,7 +12,7 @@ class Admin(commands.Cog):
 
     @commands.command(name="purge")
     async def purge_(self, ctx, amount: int = 10):
-        await ctx.channel.purge(limit=amount)
+        await ctx.channel.purge(limit=amount + 1)
 
 
 def setup(bot):

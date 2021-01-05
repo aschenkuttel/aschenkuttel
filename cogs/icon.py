@@ -1,4 +1,4 @@
-from data.credentials import API_KEY
+from data.credentials import UNSPLASH_KEY
 from utils import get_seconds_till
 from discord.ext import commands
 import asyncio
@@ -24,7 +24,7 @@ class Icon(commands.Cog):
                     continue
 
                 payload = {'query': key}
-                auth = {'Authorization': API_KEY}
+                auth = {'Authorization': UNSPLASH_KEY}
                 async with self.bot.session.get(self.url, params=payload, headers=auth) as r:
                     data = await r.json()
 

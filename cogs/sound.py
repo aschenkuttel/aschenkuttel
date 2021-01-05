@@ -60,11 +60,12 @@ class Sounds(commands.Cog):
                 await vc.disconnect()
             return
 
+        most_people = self.get_fullest_channel(guild)
+
         # member joins in channel
         if after.channel is not None:
-            most_people = self.get_fullest_channel(guild)
 
-            if most_people is None and len(vc.channel.members) == 1:
+            if most_people is None and vc and len(vc.channel.members) == 1:
                 logger.debug(f'disconnected from {vc.channel}')
                 await vc.disconnect()
                 return
@@ -86,14 +87,20 @@ class Sounds(commands.Cog):
                 logger.debug(f'connected to {most_people}')
                 return
 
-        elif vc is None:
+        # if after channel is None (leave) we look if we're in the fullest channel
+        elif most_people and guild.me not in most_people.members:
+            logger.debug(f'connected to {most_people}')
+            await vc.move_to(most_people)
             return
 
         # if after channel is None (leave) looks if its connected and the only
         # one in the channel and leaves if, since we handle channel moves above
-        elif len(vc.channel.members) == 1:
+        elif vc and len(vc.channel.members) == 1:
             logger.debug(f'disconnected from {vc.channel}')
             await vc.disconnect()
+            return
+
+        if vc is None:
             return
 
         if vc.channel in (before.channel, after.channel):
@@ -114,7 +121,7 @@ class Sounds(commands.Cog):
                     if sorted(member_ids) == sorted(ids):
                         return
 
-            if not vc.is_playing():
+            if not vc.is_playing() and vc.is_connected():
                 logger.debug(f'playing {state}-sound from {member}')
                 sound = discord.FFmpegPCMAudio(source=sound_path)
                 source = discord.PCMVolumeTransformer(sound, 0.18)

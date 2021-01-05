@@ -67,3 +67,24 @@ class DefaultDict(dict):
         else:
             self[item] = self.default()
             return dict.__getitem__(self, item)
+
+
+class Keyword:
+    def __init__(self, value, sign="="):
+        self.value = value
+        self.sign = sign
+
+    def compare(self, other, first=None):
+        value = first or self.value
+        if value is None:
+            return True
+
+        if self.sign == "<":
+            return other < value
+        elif self.sign == ">":
+            return other > value
+        else:
+            return other == value
+
+    def __bool__(self):
+        return bool(self.value)
