@@ -161,7 +161,7 @@ class Netflix(commands.Cog):
             possible_movies.append(movie)
 
         if not possible_movies:
-            msg = "Sadly no movies were able to meet your requirements"
+            msg = "sadly no movies were able to meet your requirements"
             await ctx.send(msg)
 
         else:
@@ -171,6 +171,8 @@ class Netflix(commands.Cog):
 
     @commands.command(name="movie")
     async def movie_(self, ctx, *, title_or_id: typing.Union[int, str]):
+        """returns either movies with similar title than the user input
+        or the movie which has the given id"""
         if isinstance(title_or_id, int):
             movie = self.movies.get(title_or_id)
             if movie is not None:
