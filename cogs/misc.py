@@ -26,6 +26,8 @@ class Utils(commands.Cog):
             return
 
         for member in channel.members:
+            if member.bot is True:
+                continue
             try:
                 await member.move_to(own_channel)
             except discord.Forbidden:

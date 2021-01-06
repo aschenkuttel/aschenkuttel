@@ -12,6 +12,7 @@ class Admin(commands.Cog):
 
     @commands.command(name="purge")
     async def purge_(self, ctx, amount: int = 10):
+        """deletes the last x(default=10) messages"""
         await ctx.channel.purge(limit=amount + 1)
 
 
