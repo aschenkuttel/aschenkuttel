@@ -36,6 +36,14 @@ class Movie:
             self.runtime = entry[6] or "Unknown"
             self.seconds = entry[7]
 
+    @property
+    def url(self):
+        return f"https://www.netflix.com/watch/{self.id}"
+
+    @property
+    def mention(self):
+        return f"[{self.title}]({self.url})"
+
     @staticmethod
     def parse(string):
         html = unescape(string)
@@ -70,12 +78,11 @@ class Netflix(commands.Cog):
                 self._lock.set()
                 return
 
-        down = "downloadable"
         now = datetime.datetime.now()
         params = {
-            "q": f"-!1990,{now.year}-!0,5-!0,10-!0-!Movie-!Any-!Any-!gt0-!{down}",
+            "q": f"-!1990,{now.year}-!0,5-!0,10-!0-!Movie-!German-!Any-!gt0",
             "t": "ns",
-            "cl": "39",  # German Code
+            "cl": "39",
             "st": "adv",
             "ob": "Relevance",
             "sa": "and"
@@ -121,8 +128,7 @@ class Netflix(commands.Cog):
         logger.debug(f"refreshed movies: {len(movies)}")
 
     def create_movie_embed(self, movie):
-        url = f"https://www.netflix.com/watch/{movie.id}"
-        embed = discord.Embed(title=movie.title, url=url, color=0xE50914)
+        embed = discord.Embed(title=movie.title, url=movie.url, color=0xE50914)
         embed.set_thumbnail(url=movie.image_url)
         header = f"**Rating:** {movie.rating}\n" \
                  f"**Runtime:** {movie.runtime}\n" \
@@ -144,7 +150,7 @@ class Netflix(commands.Cog):
         possible_movies = []
         await self._lock.wait()
         for movie in self.movies.values():
-            if genre not in movie.description:
+            if genre and genre not in movie.description:
                 continue
 
             if not rating.compare(movie.rating):
@@ -185,17 +191,21 @@ class Netflix(commands.Cog):
         for movie in self.movies.values():
             prob = SequenceMatcher(None, title, movie.title).ratio()
 
-            if prob >= 0.6:
-                rep = f"`{movie.id}` | {movie.title}"
-                possible_titles.append(rep)
+            if prob >= 0.6 or title.lower() in movie.title.lower():
+                possible_titles.append(movie)
 
         if possible_titles:
-            desc = "\n".join(possible_titles)
-        else:
-            desc = "no movies found"
+            represents = []
+            idc = sorted(possible_titles[:20], key=lambda m: m.id, reverse=True)
 
-        embed = discord.Embed(description=desc)
-        await ctx.send(embed=embed)
+            for movie in idc:
+                rep = f"`{movie.id}` | `{movie.year}` {movie.mention}"
+                represents.append(rep)
+
+            embed = discord.Embed(description="\n".join(represents))
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send("no movies found")
 
 
 def setup(bot):

@@ -18,7 +18,7 @@ class Timer:
             self.id = data.pop(0)
 
         else:
-            self.id = None
+            self.id = 0
 
         self.author_id = data[0]
         self.channel_id = data[1]
@@ -54,7 +54,7 @@ class Reminder(commands.Cog):
         self.bot = bot
         self.type = 2
         self.char_limit = 200
-        self.preset = "%d/%m/%Y | %H:%M:%S Uhr"
+        self.preset = "%d.%m.%Y | %H:%M:%S Uhr"
         self.set = {'PREFER_DATES_FROM': 'future'}
         self._task = self.bot.loop.create_task(self.remind_loop())
         self._lock = asyncio.Event(loop=bot.loop)
@@ -120,7 +120,9 @@ class Reminder(commands.Cog):
         else:
             reason = "No Reason"
 
-        expected_date = dateparser.parse(time, settings=self.set)
+        kwargs = {'locales': ["de-BE"], 'settings': self.set}
+        expected_date = dateparser.parse(time, **kwargs)
+
         if expected_date is None:
             msg = "No valid time format"
             await ctx.send(msg)
