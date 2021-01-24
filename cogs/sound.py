@@ -26,7 +26,8 @@ class Sounds(commands.Cog):
                 continue
             elif channel.id in ignored:
                 continue
-            else:
+
+            if [m for m in channel.members if not m.bot]:
                 visible_channel.append(channel)
 
         def key(c):
