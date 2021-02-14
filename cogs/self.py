@@ -9,7 +9,8 @@ class Owner(commands.Cog):
     async def cog_check(self, ctx):
         if await self.bot.is_owner(ctx.author):
             return True
-        raise commands.NotOwner()
+        else:
+            raise commands.NotOwner()
 
     @commands.command(name="reload")
     async def reload_(self, ctx, file):

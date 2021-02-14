@@ -13,13 +13,14 @@ default_cogs = [
     "config",
     "help",
     "icon",
+    "league",
     "listen",
     "misc",
     "netflix",
     "remind",
     "self",
     "sound",
-    "star",
+    "star"
 ]
 
 
@@ -41,10 +42,9 @@ class Aschenkuttel(commands.Bot):
         self.setup_cogs()
 
     async def on_ready(self):
-        if self.session is None:
+        if not self._lock.is_set():
             self.session = aiohttp.ClientSession(loop=self.loop)
 
-        if self.db is None:
             db_path = f"{self.path}/data/database.db"
             self.db = await aiosqlite.connect(db_path)
             await self.setup_tables()
@@ -70,12 +70,22 @@ class Aschenkuttel(commands.Bot):
                  'rating FLOAT, year SMALLINT, ' \
                  'runtime INT, seconds INT)'
 
-        query_pool = (reminder, starboard, movies)
+        summoner = 'CREATE TABLE IF NOT EXISTS summoner' \
+                   '(user_id BIGINT PRIMARY KEY, id TEXT,' \
+                   'account_id TEXT, puuid TEXT, name TEXT,' \
+                   'icon_id INT, level SMALLINT, wins SMALLINT,' \
+                   'losses SMALLINT, tier TEXT, rank TEXT, ' \
+                   'lp SMALLINT, last_match_id BIGINT)'
+
+        query_pool = (reminder, starboard, movies, summoner)
         for query in query_pool:
             await self.execute(query)
 
     async def wait_until_unlocked(self):
         return await self._lock.wait()
+
+    def is_set(self):
+        return self._lock.is_set()
 
     async def execute(self, query, *args):
         await self.db.execute(query, args)

@@ -35,6 +35,9 @@ class Listen(commands.Cog):
         elif isinstance(error, commands.ChannelNotFound):
             msg = "The ID you passed is invalid"
 
+        elif isinstance(error, utils.SummonerNotFound):
+            msg = "There's no summoner with the given name"
+
         elif isinstance(error, commands.BadArgument):
             msg = str(error)
 

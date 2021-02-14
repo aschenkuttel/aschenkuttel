@@ -17,7 +17,7 @@ logger = logging.getLogger('self')
 class Movie:
     def __init__(self, entry):
         if isinstance(entry, dict):
-            self.id = entry['netflixid']
+            self.id = int(entry['netflixid'])
             self.title = self.parse(entry['title'])
             self.image_url = entry['image']
             self.description = self.parse(entry['synopsis'])
@@ -181,6 +181,7 @@ class Netflix(commands.Cog):
         or the movie which has the given id"""
         if isinstance(title_or_id, int):
             movie = self.movies.get(title_or_id)
+
             if movie is not None:
                 embed = self.create_movie_embed(movie)
                 await ctx.send(embed=embed)

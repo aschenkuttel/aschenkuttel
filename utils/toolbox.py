@@ -131,3 +131,12 @@ def input_to_seconds(user_input):
             seconds += int(match[:-1]) * sec
 
     return seconds
+
+
+def get_member_named(ctx, name):
+    lower_name = name.lower()
+    for member in ctx.guild.members:
+        if member.display_name.lower() == lower_name:
+            return member
+        elif member.name.lower() == lower_name:
+            return member

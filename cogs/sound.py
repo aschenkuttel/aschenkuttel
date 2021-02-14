@@ -26,15 +26,17 @@ class Sounds(commands.Cog):
                 continue
             elif channel.id in ignored:
                 continue
-
-            if [m for m in channel.members if not m.bot]:
+            else:
                 visible_channel.append(channel)
 
         def key(c):
             return len([m for m in c.members if not m.bot])
 
         listed = sorted(visible_channel, key=key, reverse=True)
-        return listed[0] if listed and listed[0].members else None
+        if listed and [m for m in listed[0].members if not m.bot]:
+            return listed[0]
+        else:
+            return None
 
     def get_sound_path(self, user_id, state):
         path = f"{self.bot.path}/data/{state}/{user_id}.mp3"
@@ -57,8 +59,6 @@ class Sounds(commands.Cog):
 
         active = self.config.get('sound', guild.id)
         if not active:
-            if vc:
-                await vc.disconnect()
             return
 
         most_people = self.get_fullest_channel(guild)
@@ -105,9 +105,6 @@ class Sounds(commands.Cog):
             return
 
         if vc.channel in (before.channel, after.channel):
-            state = 'connect' if after.channel == vc.channel else 'disconnect'
-            sound_path = self.get_sound_path(member.id, state)
-
             # bot join connect which seems to take a while internally
             if guild.me == member:
 
@@ -117,12 +114,15 @@ class Sounds(commands.Cog):
 
                 else:
                     member_ids = self.cache.get(guild, [])
-
                     ids = [m.id for m in vc.channel.members]
+
                     if sorted(member_ids) == sorted(ids):
                         return
 
             if not vc.is_playing() and vc.is_connected():
+                state = 'connect' if after.channel == vc.channel else 'disconnect'
+                sound_path = self.get_sound_path(member.id, state)
+
                 logger.debug(f'playing {state}-sound from {member}')
                 sound = discord.FFmpegPCMAudio(source=sound_path)
                 source = discord.PCMVolumeTransformer(sound, 0.18)

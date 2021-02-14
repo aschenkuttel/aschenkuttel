@@ -1,3 +1,5 @@
+from discord.ext import commands
+import utils
 import json
 
 
@@ -88,3 +90,12 @@ class Keyword:
 
     def __bool__(self):
         return bool(self.value)
+
+
+class Member(commands.Converter):
+    async def convert(self, ctx, argument):
+        member = utils.get_member_named(ctx.guild, argument)
+        if member is None:
+            raise commands.MemberNotFound(argument)
+        else:
+            return member

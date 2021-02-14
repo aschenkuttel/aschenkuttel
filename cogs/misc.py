@@ -1,5 +1,6 @@
 from discord.ext import commands
 import discord
+import random
 
 
 class Utils(commands.Cog):
@@ -65,6 +66,11 @@ class Utils(commands.Cog):
         embed.set_footer(text=f"Member since {date}")
         embed.set_author(name=member.name, icon_url=member.avatar_url)
         await ctx.send(embed=embed)
+
+    @commands.command(name="choose")
+    async def choose(self, ctx, *arguments):
+        item = random.choice(arguments or ["nothing"])
+        await ctx.send(f"It's `{item}`")
 
 
 def setup(bot):

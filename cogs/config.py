@@ -10,10 +10,14 @@ class Config(commands.Cog):
             'lobby',
             'prefix',
             'query',
-            'starboard']
+            'starboard',
+            'starcount',
+            'league'
+        ]
         self.features = [
             'sound',
-            'icon']
+            'icon'
+        ]
         self.config = self.bot.config
 
     async def cog_check(self, ctx):
@@ -95,6 +99,21 @@ class Config(commands.Cog):
         msg = f"The messages now need {amount} stars to be pinned"
         await ctx.send(embed=utils.embed(msg))
 
+    @set.command(name="league")
+    async def league_(self, ctx):
+        """sets the league channel of your guild in
+        which summoners get roasted and boasted"""
+        channel_id = self.config.get('league', ctx.guild.id)
+
+        if channel_id == ctx.channel.id:
+            msg = "This channel is already the league channel"
+            await ctx.send(embed=utils.embed(msg, error=True))
+
+        else:
+            self.config.store('league', ctx.channel.id, ctx.guild.id)
+            msg = f"{ctx.channel.mention} is now the league channel"
+            await ctx.send(embed=utils.embed(msg))
+
     @commands.group(invoke_without_command=True, name="remove")
     async def remove_(self, ctx, target):
         """removes on of your guilds config"""
@@ -135,6 +154,9 @@ class Config(commands.Cog):
                 new_action = "active" if not current else "inactive"
                 msg = f"The {feature} feature is now {new_action}"
                 await ctx.send(embed=utils.embed(msg))
+
+                if feature == "sound" and ctx.guild.voice_client:
+                    await ctx.guild.voice_client.disconnect()
 
     @commands.group(name="hide", invoke_without_command=True)
     async def hide(self, ctx, channel: discord.VoiceChannel):
