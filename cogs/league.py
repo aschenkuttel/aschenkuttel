@@ -1,10 +1,12 @@
 from discord.ext import commands, tasks
 from data.credentials import RITO_KEY
 from typing import Union
+import asyncio
 import discord
 import logging
 import random
 import utils
+import os
 
 logger = logging.getLogger('self')
 
@@ -48,7 +50,9 @@ class Summoner:
 
     @property
     def str_rank(self):
-        if self.tier in self.all_tiers[:3]:
+        if self.tier is None:
+            return "Unranked"
+        elif self.tier in self.all_tiers[:3]:
             return self.tier
         else:
             return f"{self.tier} {self.rank}"
@@ -76,12 +80,6 @@ class Summoner:
             return True
 
 
-class Match:
-    def __init__(self, data):
-        self.data = data
-        self.participants = data['participants']
-
-
 class League(commands.Cog):
     base_url = "https://euw1.api.riotgames.com/lol"
     query = 'INSERT INTO summoner (user_id, id, account_id, puuid, ' \
@@ -93,67 +91,55 @@ class League(commands.Cog):
     colour = 0x785A28
     messages = {
         'up': [
-            "LOL, **{0}** ist somehow nach `{1.str_rank}` aufgestiegen?",
-            "Wieviel hat `{1.str_rank}` gekostet, **{0}**?",
-            "LOL, wieso nur `{1.str_rank}`. Climb mal schneller **{0}**",
-            "Glückwunsch zu `{1.str_rank}`, **{0}**.",
-            "**{0}** hat sich `{1.str_rank}` erkämpft!",
-            "Endlich  `{1.str_rank}`, good job **{0}**.",
-            "Wow, `{1.str_rank}`! Well played **{0}**.",
-            "**{0}** ist nun Chall- äh `{1.str_rank}`. Gw!",
-            "Achtung, Achtung! **{0}** ist nun eine `{1.str_rank}` Legende.",
-            "**{0}** ist endlich `{1.str_rank}` und damit High Elo!",
-            "Oha, **{0}** ist jetzt `{1.str_rank}`.\nHätte ich ihm niemals zugetraut!"
+            "Wie viel hat `{1.str_rank}` gekostet,\n{0}?",
+            "LOL, wieso nur `{1.str_rank}`?\nClimb mal schneller {0}",
+            "Glückwunsch zu `{1.str_rank}`,\n{0}",
+            "{0}\nhat sich`{1.str_rank}` erkämpft!",
+            "Endlich `{1.str_rank}`,\ngood job {0}",
+            "Wow, `{1.str_rank}`!\nWell played {0}",
+            "Oha, {0} ist jetzt `{1.str_rank}`.\nHätte ich ihm niemals zugetraut!"
         ],
         'down': [
-            "Glückwunsch **{0}**, du bist nach {1.str_rank} abgestiegen...",
-            "**{0}** ist nach `{1.str_rank}` gedropped xdddddd",
-            "`{1.str_rank}`. Good Job **{0}**.\nSind sicher deine Teammates schuld, right?",
-            "**{0}** ist auf dem Weg nach Iron!\nAktuelle Station: `{1.str_rank}`.",
-            "`{1.str_rank}`. Dein ernst **{0}**? xD",
-            "Willst du weiter droppen **{0}** oder machst du bei "
-            "`{1.str_rank}` jetzt erstmal Pause?",
-            "`{1.str_rank}` XDDDDDDDDDDDDDD\nHoly shit wie bad kann man sein **{0}**.",
-            "Yo **{0}**, hattest du Lags oder wieso `{1.str_rank}`?",
-            "ALARM, ein wildes **{0}** ist gerade fett am droppen.\nIst atm `{1.str_rank}` xDDD",
-            "Bist du besoffen oder wie hast du es nach `{1.str_rank}` geschafft, **{0}**? xD",
-            "**{0}** möchte nicht mehr climben.\nStattdessen ist er nach `{1.str_rank}` gedroppt xD"
+            "Glückwunsch {0},\ndu bist nach {1.str_rank} abgestiegen...",
+            "`{1.str_rank}`. Good Job {0}.\nSind sicher deine Teammates schuld, right?",
+            "{0} ist auf dem Weg nach Iron!\nAktuelle Station: `{1.str_rank}`",
+            "`{1.str_rank}`.\nDein Ernst {0}? xd",
+            "Yo {0},\nhattest du Lags oder wieso `{1.str_rank}`?",
         ],
         'carry': [
-            "Holy shit **{0}**, hast du gegen Bots gespielt\noder wie kommt `{1}` zusammen?",
-            "`{1}`. Well played, **{0}**.",
-            "`{1}`! NA-Soloq, right **{0}**?",
-            "Yo **{0}**, wie viel zahlst du deinem Booster\ndamit er für dich `{1}` geht?",
-            "Hallo, Herr Doktor? Ja es geht um **{0}**.\n"
-            "Er hatte grade ein `{1}` Game und ich glaube sein Rücken ist kaputt.",
-            "WOOOOOH, `{1}`! Crazy Performance **{0}**, GGWP!",
-            "LOL **{0}**? `{1}`? Calm down Faker.",
-            "`{1}`! **{0}** vor, noch ein Tor!",
-            "Wait, **{0}**. Du hast ja doch Hände! `{1}`, wow!",
-            "Oida! `{1}`! Hoffe dein Team hat dir 50 € gezahlt **{0}**."
+            "Holy shit {0}, hast du gegen Bots gespielt\noder wie kommt `{1}` zusammen?",
+            "`{1}`, well played, {0}",
+            "`{1}`? NA-Soloqueue, right {0} xd",
+            "Yo {0}, wie viel zahlst du deinem\nBooster damit er für dich `{1}` geht?",
+            "Hallo, Herr Doktor? Ja es geht um {0},\n"
+            "er hatte grade ein `{1}` Game und ich glaube sein Rücken ist kaputt.",
+            "LOL {0}? `{1}`? Calm down Faker...",
+            "`{1}`! {0} vor, noch ein Tor!",
+            "Wait, {0}. Du hast ja doch Hände!? `{1}`, Wow!",
+            "Oida `{1}`. Hoffe dein Team hat dir 50 € gezahlt {0}"
         ],
         'int': [
-            "`{1}`. Dein fucking ernst **{0}**? xD",
-            "Ähm **{0}**, willst du deinen Acc nicht mehr oder warum `{1}`?",
-            "Jo, kurz afk ein Ticket schreiben wegen **{0}**'s `{1}` Game.",
-            "`{1}` XDDDDDDDDDDDDDD\nAch cmon **{0}**, das gibt so save nen Ban :D",
-            "Unlucky Game **{0}**? `{1}`? xDDDDD",
-            "Hey **{0}**, wen bist du denn in dem Game runtergerannt? "
+            "`{1}`. Dein fucking Ernst {0}? xd",
+            "Ähm {0}, willst du deinen Acc nicht mehr oder warum `{1}`?",
+            "`{1}` XDDDDDDDDDDDDDD\nAch cmon {0}, das gibt so save nen Ban :D",
+            "Hey {0}, wen bist du denn in dem Game runtergerannt?\n"
             "Wer hat nen `{1}`-Inter in seinen Games verdient?",
-            "`{1}`. Ich lass das mal unkommentiert so stehen, **{0}**.",
-            "Grade **{0}**'s Matchhistory gecheckt und sehe `{1}`. AHAHAHAHA",
-            "Hallo Riot Support? Es geht um **{0}**.\nJa genau, das `{1}` Game. Danke :)",
-            "Okay **{0}**. `{1}`. Bitte sag mir, dass das Absicht war xDDDDD"
+            "`{1}`. Ich lass das mal unkommentiert so stehen, {0}",
+            "Gerade {0}'s Matchhistory gecheckt und sehe `{1}`.\nAHAHAHAHAHAHAHAHAHAHA",
+            "Hallo Riot Support? Es geht um {0}\nJa genau, das `{1}` Game. Danke :)",
         ]
     }
 
     def __init__(self, bot):
         self.bot = bot
+        self.champion = {}
         self.summoner = {}
         self.bot.loop.create_task(self.load_summoner())
+        self.refresh_champions.start()
         self.engine.start()
 
     def cog_unload(self):
+        self.refresh_champions.cancel()
         self.engine.cancel()
 
     async def load_summoner(self):
@@ -186,7 +172,30 @@ class League(commands.Cog):
         await self.bot.db.executemany(self.query, batch)
         return summoners
 
-    @tasks.loop(minutes=1)
+    @tasks.loop(hours=24)
+    async def refresh_champions(self):
+        await self.bot.wait_until_unlocked()
+        url = "http://ddragon.leagueoflegends.com/cdn/11.3.1/data/en_US/champion.json"
+        async with self.bot.session.get(url) as resp:
+            cache = await resp.json()
+
+        for pkg in cache['data'].values():
+            id_ = int(pkg['key'])
+            self.champion[id_] = pkg
+
+    async def send_embed(self, channel, summoner, msg):
+        path = f"{self.bot.path}/data/league/{summoner.tier}.png"
+
+        if os.path.isfile(path):
+            file = discord.File(path, filename="tier.png")
+            embed = discord.Embed(description=f"\u200b\n{msg}", colour=self.colour)
+            embed.set_thumbnail(url="attachment://tier.png")
+            await utils.silencer(channel.send(file=file, embed=embed))
+            await asyncio.sleep(2)
+        else:
+            logger.error(f"{path} not found")
+
+    @tasks.loop(minutes=10)
     async def engine(self):
         if not self.bot.is_set():
             return
@@ -213,19 +222,22 @@ class League(commands.Cog):
                 if summoner is None:
                     continue
 
-                name = f"{member.display_name} ({summoner})"
-                if old_summoner.int_rank < summoner.int_rank:
+                name = f"[{member.display_name}]({summoner.op_gg})"
+                if old_summoner.int_rank < summoner.int_rank or True:
                     base = random.choice(self.messages['up'])
                     msg = base.format(name, summoner)
-                    messages.append(msg)
+                    await self.send_embed(channel, summoner, msg)
 
                 elif old_summoner.int_rank > summoner.int_rank:
                     base = random.choice(self.messages['down'])
                     msg = base.format(name, summoner)
-                    messages.append(msg)
+                    await self.send_embed(channel, summoner, msg)
 
-                if old_summoner.last_match_id != summoner.last_match_id:
+                if old_summoner.last_match_id != summoner.last_match_id or True:
                     match = await self.fetch_match(summoner.last_match_id)
+
+                    if match['gameType'] != "MATCHED_GAME":
+                        continue
 
                     participant_id = None
                     for data in match['participantIdentities']:
@@ -261,6 +273,11 @@ class League(commands.Cog):
                             k_d = f"{stats['kills']}/{stats['deaths']}"
                             msg = base.format(name, k_d)
                             messages.append(msg)
+
+                        if summoner.id == "KenEY1p1tyFRVd4tZnr3YYX5FZxwMEzqeOFrG4C7E_HE6IE":
+                            if match['gameMode'] == "ARAM":
+                                msg = f"{name} spielt fucking ARAM? WTF!"
+                                messages.append(msg)
 
             if messages:
                 description = "\n\n".join(messages)
@@ -370,16 +387,17 @@ class League(commands.Cog):
             data['name'],
             data['profileIconId'],
             data['summonerLevel'],
-            data.get('wins'),
-            data.get('losses'),
+            data.get('wins', 0),
+            data.get('losses', 0),
             data.get('tier'),
             data.get('rank'),
-            data.get('leaguePoints'),
+            data.get('leaguePoints', 0),
             data.get('last_match_id')
         ]
 
-    @commands.command(name="im")
-    async def im_(self, ctx, *, summoner_name):
+    @commands.command(name="league")
+    async def league_(self, ctx, *, summoner_name):
+        """sets your connected summoner"""
         data = await self.fetch_summoner_basic(summoner_name)
         old_summoner = self.summoner.get(ctx.author.id)
 
@@ -398,6 +416,8 @@ class League(commands.Cog):
 
     @commands.command(name="summoner")
     async def summoner_(self, ctx, *, argument=None):
+        """gives some basic information about your, someones
+        connected summoner or some external summoner"""
         summoner = self.get_summoner_by_member(ctx, argument)
 
         if summoner is None:
@@ -410,12 +430,28 @@ class League(commands.Cog):
         embed.set_thumbnail(url=summoner.icon_url)
         parts = [
             f"**Games played:** {summoner.games}",
-            f"**Win | Lose:** {summoner.wins} | {summoner.losses}",
+            f"**Win/Lose:** {summoner.wins}/{summoner.losses}",
             f"**Rank:** {summoner.str_rank} ({summoner.lp} LP)"
         ]
 
         embed.description = "\n".join(parts)
         await ctx.send(embed=embed)
+
+    @commands.command(name="check")
+    async def check_(self, ctx, *, username):
+        """checks if given summoner name is already used or free,
+        keep in mind that it only looks for availability and not
+        if the given summoner name is valid as well"""
+        try:
+            if len(username) > 16:
+                msg = "too long"
+            else:
+                await self.fetch_summoner_basic(username)
+                msg = "unavailable"
+        except utils.SummonerNotFound:
+            msg = "available"
+
+        await ctx.send(f"`{username}` is {msg}")
 
 
 def setup(bot):
