@@ -82,12 +82,28 @@ class Summoner:
 
 class League(commands.Cog):
     base_url = "https://euw1.api.riotgames.com/lol"
-    query = 'INSERT INTO summoner (user_id, id, account_id, puuid, ' \
+    # query = 'INSERT INTO summoner (user_id, id, account_id, puuid, ' \
+    #         'name, icon_id, level, wins, losses, tier, rank, lp, last_match_id) ' \
+    #         'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) ' \
+    #         'ON CONFLICT (user_id) DO UPDATE SET id=$2, account_id=$3, ' \
+    #         'puuid=$4, name=$5, icon_id=$6, level=$7, wins=$8, ' \
+    #         'losses=$9, tier=$10, rank=$11, lp=$12, last_match_id=$13'
+
+    # we have to use this monstrosity since sqlite3 on ubuntu doesnt support
+    # on conflict update, don't ask me why
+    query = 'INSERT OR REPLACE INTO summoner (user_id, id, account_id, puuid, ' \
             'name, icon_id, level, wins, losses, tier, rank, lp, last_match_id) ' \
-            'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) ' \
-            'ON CONFLICT (user_id) DO UPDATE SET id=$2, account_id=$3, ' \
-            'puuid=$4, name=$5, icon_id=$6, level=$7, wins=$8, ' \
-            'losses=$9, tier=$10, rank=$11, lp=$12, last_match_id=$13'
+            'VALUES ($1, $2, $3, $4,' \
+            'COALESCE($5, (SELECT name FROM summoner WHERE user_id = $1)),' \
+            'COALESCE($6, (SELECT icon_id FROM summoner WHERE user_id = $1)),' \
+            'COALESCE($7, (SELECT level FROM summoner WHERE user_id = $1)),' \
+            'COALESCE($8, (SELECT wins FROM summoner WHERE user_id = $1)),' \
+            'COALESCE($9, (SELECT losses FROM summoner WHERE user_id = $1)),' \
+            'COALESCE($10, (SELECT tier FROM summoner WHERE user_id = $1)),' \
+            'COALESCE($11, (SELECT rank FROM summoner WHERE user_id = $1)),' \
+            'COALESCE($12, (SELECT lp FROM summoner WHERE user_id = $1)),' \
+            'COALESCE($13, (SELECT last_match_id FROM summoner WHERE user_id = $1)))'
+
     colour = 0x785A28
     messages = {
         'up': [
