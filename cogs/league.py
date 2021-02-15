@@ -223,7 +223,7 @@ class League(commands.Cog):
                     continue
 
                 name = f"[{member.display_name}]({summoner.op_gg})"
-                if old_summoner.int_rank < summoner.int_rank or True:
+                if old_summoner.int_rank < summoner.int_rank:
                     base = random.choice(self.messages['up'])
                     msg = base.format(name, summoner)
                     await self.send_embed(channel, summoner, msg)
@@ -233,7 +233,7 @@ class League(commands.Cog):
                     msg = base.format(name, summoner)
                     await self.send_embed(channel, summoner, msg)
 
-                if old_summoner.last_match_id != summoner.last_match_id or True:
+                if old_summoner.last_match_id != summoner.last_match_id:
                     match = await self.fetch_match(summoner.last_match_id)
 
                     if match['gameType'] != "MATCHED_GAME":
