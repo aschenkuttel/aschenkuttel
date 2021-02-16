@@ -38,6 +38,12 @@ class Listen(commands.Cog):
         elif isinstance(error, utils.SummonerNotFound):
             msg = "There's no summoner with the given name"
 
+        elif isinstance(error, utils.NoSummonerLinked):
+            msg = "The member has no connected summoner"
+
+        elif isinstance(error, utils.NoRiotResponse):
+            msg = "The Riot API is currently not responding"
+
         elif isinstance(error, commands.BadArgument):
             msg = str(error)
 

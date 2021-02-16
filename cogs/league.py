@@ -217,7 +217,12 @@ class League(commands.Cog):
             return
 
         logger.debug("starting league engine")
-        current_summoner = await self.refresh_summoner()
+
+        try:
+            current_summoner = await self.refresh_summoner()
+        except utils.NoRiotResponse:
+            return
+
         if current_summoner is None:
             return
 
@@ -250,7 +255,10 @@ class League(commands.Cog):
                     await self.send_embed(channel, summoner, msg)
 
                 if old_summoner.last_match_id != summoner.last_match_id:
-                    match = await self.fetch_match(summoner.last_match_id)
+                    try:
+                        match = await self.fetch_match(summoner.last_match_id)
+                    except utils.NoRiotResponse:
+                        return
 
                     if match['gameType'] != "MATCHED_GAME":
                         continue
@@ -341,6 +349,9 @@ class League(commands.Cog):
             logger.debug(f"status code: {status_code}")
             logger.debug(f"message: {status.get('message')}")
 
+            if status_code != 404:
+                raise utils.NoRiotResponse()
+
     async def fetch_summoner_basic(self, argument, id_=False):
         base = f"{self.base_url}/summoner/v4/summoners"
 
@@ -370,7 +381,8 @@ class League(commands.Cog):
     async def fetch_matches(self, account_id):
         url = f"{self.base_url}/match/v4/matchlists/by-account/{account_id}"
         cache = await self.fetch(url)
-        return cache.get('matches')
+        if cache is not None:
+            return cache.get('matches')
 
     async def fetch_match(self, match_id):
         url = f"{self.base_url}/match/v4/matches/{match_id}"
@@ -426,7 +438,7 @@ class League(commands.Cog):
         else:
             data_set = await self.fetch_summoner(data)
             summoner = await self.save_summoner(ctx.author.id, data_set)
-            msg = f"`{summoner}` is now your connect summoner"
+            msg = f"`{summoner}` is now your connected summoner"
 
         await ctx.send(msg)
 

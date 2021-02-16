@@ -11,3 +11,8 @@ class NoSummonerLinked(commands.CheckFailure):
     def __init__(self, member):
         self.member = member
         super().__init__(f"{self.member.name} has no connected summoner")
+
+
+class NoRiotResponse(commands.CheckFailure):
+    def __init__(self, ):
+        super().__init__("Riot API not responding")

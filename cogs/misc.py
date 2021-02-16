@@ -1,6 +1,7 @@
 from discord.ext import commands
 import discord
 import random
+import utils
 
 
 class Utils(commands.Cog):
@@ -37,7 +38,7 @@ class Utils(commands.Cog):
         await ctx.message.delete()
 
     @commands.command(name="mirror")
-    async def mirror_(self, ctx, member: discord.Member = None):
+    async def mirror_(self, ctx, member: utils.Member = None):
         """displays the discord avatar of a guild member
         or yourself if no member passed in the arguments"""
         member = member or ctx.author
@@ -53,7 +54,7 @@ class Utils(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name="profile")
-    async def profile_(self, ctx, member: discord.Member = None):
+    async def profile_(self, ctx, member: utils.Member = None):
         """gives some basic stats about a guild member
         or yourself if no member passed in the arguments"""
         member = member or ctx.author
