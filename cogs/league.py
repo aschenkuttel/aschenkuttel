@@ -12,10 +12,10 @@ logger = logging.getLogger('self')
 
 
 class Summoner:
-    all_tiers = ["CHALLENGER", "GRANDMASTER", "MASTER",
-                 "DIAMOND", "PLATINUM", "GOLD",
-                 "SILVER", "BRONZE", "IRON"]
-    all_ranks = ["I", "II", "III", "IV"]
+    all_tiers = ["IRON", "BRONZE", "SILVER",
+                 "GOLD", "PLATINUM", "DIAMOND",
+                 "MASTER", "GRANDMASTER", "CHALLENGER"]
+    all_ranks = ["IV", "III", "II", "I"]
 
     def __init__(self, record):
         (self.user_id,
@@ -52,7 +52,7 @@ class Summoner:
     def str_rank(self):
         if self.tier is None:
             return "Unranked"
-        elif self.tier in self.all_tiers[:3]:
+        elif self.tier in self.all_tiers[-3:]:
             return self.tier
         else:
             return f"{self.tier} {self.rank}"
@@ -64,7 +64,7 @@ class Summoner:
 
         tier_index = self.all_tiers.index(self.tier)
         rank_index = self.all_ranks.index(self.rank)
-        return int(f"{tier_index + 1}{rank_index}")
+        return int(f"{tier_index}{rank_index + 1}")
 
     @property
     def unranked(self):
@@ -107,20 +107,20 @@ class League(commands.Cog):
     colour = 0x785A28
     messages = {
         'up': [
-            "Wie viel hat `{1.str_rank}` gekostet,\n{0}?",
-            "LOL, wieso nur `{1.str_rank}`?\nClimb mal schneller {0}",
-            "Glückwunsch zu `{1.str_rank}`,\n{0}",
-            "{0}\nhat sich`{1.str_rank}` erkämpft!",
-            "Endlich `{1.str_rank}`,\ngood job {0}",
-            "Wow, `{1.str_rank}`!\nWell played {0}",
-            "Oha, {0} ist jetzt `{1.str_rank}`.\nHätte ich ihm niemals zugetraut!"
+            "Wie viel hat `{1}` gekostet,\n{0}?",
+            "LOL, wieso nur `{1}`?\nClimb mal schneller {0}",
+            "Glückwunsch zu `{1}`\n{0}",
+            "{0}\nhat sich`{1}` erkämpft!",
+            "Endlich `{1}`,\ngood job {0}",
+            "Wow, `{1}`!\nWell played {0}",
+            "Oha, {0} ist jetzt `{1}`.\nHätte ich ihm niemals zugetraut!"
         ],
         'down': [
-            "Glückwunsch {0},\ndu bist nach {1.str_rank} abgestiegen...",
-            "`{1.str_rank}`. Good Job {0}.\nSind sicher deine Teammates schuld, right?",
-            "{0} ist auf dem Weg nach Iron!\nAktuelle Station: `{1.str_rank}`",
-            "`{1.str_rank}`.\nDein Ernst {0}? xd",
-            "Yo {0},\nhattest du Lags oder wieso `{1.str_rank}`?",
+            "Glückwunsch {0},\ndu bist nach {1} abgestiegen...",
+            "`{1}`. Good Job {0}\nSind sicher deine Teammates schuld, right?",
+            "{0} ist auf dem Weg nach Iron!\nAktuelle Station: `{1}`",
+            "`{1}`.\nDein Ernst {0}? xd",
+            "Yo {0},\nhattest du Lags oder wieso `{1}`?",
         ],
         'carry': [
             "Holy shit {0}, hast du gegen Bots gespielt\noder wie kommt `{1}` zusammen?",
@@ -186,6 +186,7 @@ class League(commands.Cog):
                 batch.append(arguments)
 
         await self.bot.db.executemany(self.query, batch)
+        await self.bot.db.commit()
         return summoners
 
     @tasks.loop(hours=24)
@@ -210,13 +211,11 @@ class League(commands.Cog):
             await asyncio.sleep(2)
         else:
             logger.error(f"{path} not found")
-
+    
     @tasks.loop(minutes=10)
     async def engine(self):
         if not self.bot.is_set():
             return
-
-        logger.debug("starting league engine")
 
         try:
             current_summoner = await self.refresh_summoner()
@@ -246,19 +245,19 @@ class League(commands.Cog):
                 name = f"[{member.display_name}]({summoner.op_gg})"
                 if old_summoner.int_rank < summoner.int_rank:
                     base = random.choice(self.messages['up'])
-                    msg = base.format(name, summoner)
+                    msg = base.format(name, summoner.str_rank)
                     await self.send_embed(channel, summoner, msg)
 
                 elif old_summoner.int_rank > summoner.int_rank:
                     base = random.choice(self.messages['down'])
-                    msg = base.format(name, summoner)
+                    msg = base.format(name, summoner.str_rank)
                     await self.send_embed(channel, summoner, msg)
 
                 if old_summoner.last_match_id != summoner.last_match_id:
                     try:
                         match = await self.fetch_match(summoner.last_match_id)
                     except utils.NoRiotResponse:
-                        return
+                        continue
 
                     if match['gameType'] != "MATCHED_GAME":
                         continue
@@ -279,22 +278,20 @@ class League(commands.Cog):
                         ratio = stats['kills'] / stats['deaths'] or 1
                         dif = 0 if match['gameMode'] == "CLASSIC" else 5
                         support = player_data['timeline']['role'] == "DUO_SUPPORT"
+                        k_d = f"{stats['kills']}/{stats['deaths']}/{stats['assists']}"
 
                         if support and stats['assists'] >= (20 + dif * 2) and stats['deaths'] <= 5:
                             base = random.choice(self.messages['carry'])
-                            k_d = f"{stats['kills']}/{stats['deaths']}/{stats['assists']}"
                             msg = base.format(name, k_d)
                             messages.append(msg)
 
                         elif stats['kills'] >= (10 + dif) and ratio >= 2.5:
                             base = random.choice(self.messages['carry'])
-                            k_d = f"{stats['kills']}/{stats['deaths']}"
                             msg = base.format(name, k_d)
                             messages.append(msg)
 
-                        elif stats['deaths'] >= (10 + dif) and ratio <= 0.3 and not support:
+                        elif stats['deaths'] >= (10 + dif) and ratio <= 0.3:
                             base = random.choice(self.messages['int'])
-                            k_d = f"{stats['kills']}/{stats['deaths']}"
                             msg = base.format(name, k_d)
                             messages.append(msg)
 

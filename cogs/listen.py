@@ -32,6 +32,9 @@ class Listen(commands.Cog):
         elif isinstance(error, commands.MissingPermissions):
             msg = "sorry but you don't have the permissions for that"
 
+        elif isinstance(error, commands.MissingRequiredArgument):
+            msg = "sorry but this command needs another argument"
+
         elif isinstance(error, commands.ChannelNotFound):
             msg = "The ID you passed is invalid"
 

@@ -90,8 +90,12 @@ class Sounds(commands.Cog):
 
         # if after channel is None (leave) we look if we're in the fullest channel
         elif most_people and guild.me not in most_people.members:
+            if vc is None:
+                await most_people.connect()
+            else:
+                await vc.move_to(most_people)
+
             logger.debug(f'connected to {most_people}')
-            await vc.move_to(most_people)
             return
 
         # if after channel is None (leave) looks if its connected and the only
