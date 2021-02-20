@@ -80,6 +80,79 @@ class Summoner:
             return True
 
 
+class Match:
+    def __init__(self, match, summoner_id):
+        self.data = match
+        self.summoner_id = summoner_id
+        self.inapplicable = False
+        self.player_data = None
+
+        if self.data['gameType'] != "MATCHED_GAME":
+            self.inapplicable = True
+            return
+
+        participant_id = None
+        for data in self.data['participantIdentities']:
+            if data['player']['summonerId'] == summoner_id:
+                participant_id = data['participantId']
+                break
+
+        for data in self.data['participants']:
+            if data['participantId'] == participant_id:
+                self.player_data = data
+                self.player_stats = data['stats']
+
+        if self.player_data is None:
+            self.inapplicable = True
+            return
+
+        team_id = self.player_data['teamId']
+        for team in self.data['teams']:
+            if team['teamId'] == team_id:
+                self.team_data = team
+
+        self.win = self.team_data['win'] == "Win"
+        self.normal = self.data['gameMode'] == "CLASSIC"
+
+        self.kills = self.player_stats['kills']
+        self.deaths = self.player_stats['deaths']
+        self.assists = self.player_stats['assists']
+        self.ratio = self.kills / (self.deaths or 1)
+        self.kd = f"{self.kills}/{self.deaths}/{self.assists}"
+
+    def kill_participation(self):
+        parts = self.kills + self.assists
+
+        team_kills = 0
+        for data in self.data['participants']:
+            if data['teamId'] == self.team_data['teamId']:
+                team_kills += data['stats']['kills']
+
+        return round(parts / (team_kills or 1))
+
+    def carry(self):
+        if not self.win:
+            return
+
+        dif = 0 if self.normal else 5
+        if self.player_data['timeline']['role'] == "DUO_SUPPORT":
+            return self.assists >= (20 + dif * 2) and self.deaths <= 6
+
+        if self.kills >= (10 + dif) and self.ratio >= 2.5:
+            return True
+        elif self.kill_participation() >= 0.7:
+            return True
+
+    def int(self):
+        dif = 0 if self.normal else 4
+        return self.deaths >= (10 + dif) and self.ratio <= 0.3
+
+    def special_scenario(self):
+        if self.summoner_id == "KenEY1p1tyFRVd4tZnr3YYX5FZxwMEzqeOFrG4C7E_HE6IE":
+            if self.data['gameMode'] == "ARAM":
+                return "{} spielt fucking ARAM? WTF!"
+
+
 class League(commands.Cog):
     base_url = "https://euw1.api.riotgames.com/lol"
     # query = 'INSERT INTO summoner (user_id, id, account_id, puuid, ' \
@@ -211,8 +284,8 @@ class League(commands.Cog):
             await asyncio.sleep(2)
         else:
             logger.error(f"{path} not found")
-    
-    @tasks.loop(minutes=10)
+
+    @tasks.loop(minutes=1)
     async def engine(self):
         if not self.bot.is_set():
             return
@@ -255,50 +328,27 @@ class League(commands.Cog):
 
                 if old_summoner.last_match_id != summoner.last_match_id:
                     try:
-                        match = await self.fetch_match(summoner.last_match_id)
+                        match_data = await self.fetch_match(summoner.last_match_id)
+                        match = Match(match_data, summoner.id)
                     except utils.NoRiotResponse:
                         continue
 
-                    if match['gameType'] != "MATCHED_GAME":
+                    if match.inapplicable:
                         continue
 
-                    participant_id = None
-                    for data in match['participantIdentities']:
-                        if data['player']['summonerId'] == summoner.id:
-                            participant_id = data['participantId']
-                            break
+                    if match.carry():
+                        base = random.choice(self.messages['carry'])
+                        msg = base.format(name, match.kd)
+                        messages.append(msg)
 
-                    player_data = None
-                    for data in match['participants']:
-                        if data['participantId'] == participant_id:
-                            player_data = data
+                    elif match.int():
+                        base = random.choice(self.messages['int'])
+                        msg = base.format(name, match.kd)
+                        messages.append(msg)
 
-                    if player_data is not None:
-                        stats = player_data['stats']
-                        ratio = stats['kills'] / stats['deaths'] or 1
-                        dif = 0 if match['gameMode'] == "CLASSIC" else 5
-                        support = player_data['timeline']['role'] == "DUO_SUPPORT"
-                        k_d = f"{stats['kills']}/{stats['deaths']}/{stats['assists']}"
-
-                        if support and stats['assists'] >= (20 + dif * 2) and stats['deaths'] <= 5:
-                            base = random.choice(self.messages['carry'])
-                            msg = base.format(name, k_d)
-                            messages.append(msg)
-
-                        elif stats['kills'] >= (10 + dif) and ratio >= 2.5:
-                            base = random.choice(self.messages['carry'])
-                            msg = base.format(name, k_d)
-                            messages.append(msg)
-
-                        elif stats['deaths'] >= (10 + dif) and ratio <= 0.3:
-                            base = random.choice(self.messages['int'])
-                            msg = base.format(name, k_d)
-                            messages.append(msg)
-
-                        if summoner.id == "KenEY1p1tyFRVd4tZnr3YYX5FZxwMEzqeOFrG4C7E_HE6IE":
-                            if match['gameMode'] == "ARAM":
-                                msg = f"{name} spielt fucking ARAM? WTF!"
-                                messages.append(msg)
+                    elif base := match.special_scenario():
+                        msg = base.format(name)
+                        messages.append(msg)
 
             if messages:
                 description = "\n\n".join(messages)
