@@ -228,7 +228,7 @@ class League(commands.Cog):
         self.bot = bot
         self.champion = {}
         self.summoner = {}
-        self.bot.loop.create_task(self.load_summoner())
+        self._reload_lock = asyncio.Event()
         self.refresh_champions.start()
         self.engine.start()
 
@@ -241,6 +241,7 @@ class League(commands.Cog):
         query = 'SELECT * FROM summoner'
         cache = await self.bot.fetch(query)
         self.summoner = {rec[0]: Summoner(rec) for rec in cache}
+        self._reload_lock.set()
 
     async def refresh_summoner(self):
         summoners = {}
@@ -290,9 +291,10 @@ class League(commands.Cog):
         else:
             logger.error(f"{path} not found")
 
-    @tasks.loop(minutes=1)
+    @tasks.loop(minutes=10)
     async def engine(self):
-        if not self.bot.is_set():
+        if not self._reload_lock.is_set():
+            await self.load_summoner()
             return
 
         try:
@@ -331,7 +333,7 @@ class League(commands.Cog):
                     msg = base.format(name, summoner.str_rank)
                     await self.send_embed(channel, summoner, msg)
 
-                if old_summoner.last_match_id != summoner.last_match_id or True:
+                if old_summoner.last_match_id != summoner.last_match_id:
                     try:
                         match_data = await self.fetch_match(summoner.last_match_id)
                         match = Match(match_data, summoner.id)

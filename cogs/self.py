@@ -1,4 +1,8 @@
 from discord.ext import commands
+import logging
+
+
+logger = logging.getLogger('self')
 
 
 class Owner(commands.Cog):
@@ -17,6 +21,7 @@ class Owner(commands.Cog):
         try:
             self.bot.reload_extension(f"cogs.{file}")
             msg = f"`{file}.py` has been reloaded"
+            logger.debug(msg)
 
         except commands.ExtensionNotLoaded:
             msg = f"`{file}.py` not found"
