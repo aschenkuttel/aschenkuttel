@@ -117,8 +117,11 @@ class Match:
         self.kills = self.player_stats['kills']
         self.deaths = self.player_stats['deaths']
         self.assists = self.player_stats['assists']
-        self.ratio = self.kills / (self.deaths or 1)
-        self.kd = f"{self.kills}/{self.deaths}/{self.assists}"
+        self.kda = (self.kills + self.assists) / (self.deaths or 1)
+        self.str_kda = f"{self.kills}/{self.deaths}/{self.assists}"
+
+        self.lane = self.player_data['timeline']['lane']
+        self.role = self.player_data['timeline']['role']
 
     def kill_participation(self):
         parts = self.kills + self.assists
@@ -135,17 +138,19 @@ class Match:
             return
 
         dif = 0 if self.normal else 5
-        if self.player_data['timeline']['role'] == "DUO_SUPPORT":
-            return self.assists >= (20 + dif * 2) and self.deaths <= 6
 
-        if self.kills >= (10 + dif) and self.ratio >= 2.5:
+        if self.kills >= (10 + dif) and self.kda >= 3:
             return True
-        elif self.kill_participation() >= 0.7:
+
+        elif self.kill_participation() >= 0.5 and self.kda >= 3:
             return True
+
+        elif self.role == "DUO_SUPPORT" or self.lane == "JUNGLE":
+            return self.assists >= (20 + dif * 2) and self.kda > 3
 
     def int(self):
         dif = 0 if self.normal else 4
-        return self.deaths >= (10 + dif) and self.ratio <= 0.3
+        return self.deaths >= (10 + dif) and self.kda <= 0.4
 
     def special_scenario(self):
         if self.summoner_id == "KenEY1p1tyFRVd4tZnr3YYX5FZxwMEzqeOFrG4C7E_HE6IE":
@@ -326,7 +331,7 @@ class League(commands.Cog):
                     msg = base.format(name, summoner.str_rank)
                     await self.send_embed(channel, summoner, msg)
 
-                if old_summoner.last_match_id != summoner.last_match_id:
+                if old_summoner.last_match_id != summoner.last_match_id or True:
                     try:
                         match_data = await self.fetch_match(summoner.last_match_id)
                         match = Match(match_data, summoner.id)
@@ -336,17 +341,19 @@ class League(commands.Cog):
                     if match.inapplicable:
                         continue
 
+                    base = match.special_scenario()
+
                     if match.carry():
                         base = random.choice(self.messages['carry'])
-                        msg = base.format(name, match.kd)
+                        msg = base.format(name, match.str_kda)
                         messages.append(msg)
 
                     elif match.int():
                         base = random.choice(self.messages['int'])
-                        msg = base.format(name, match.kd)
+                        msg = base.format(name, match.str_kda)
                         messages.append(msg)
 
-                    elif base := match.special_scenario():
+                    elif base:
                         msg = base.format(name)
                         messages.append(msg)
 
