@@ -174,7 +174,7 @@ class Sounds(commands.Cog):
         state = ctx.invoked_with.lower()
 
         if begin is not None:
-            if (end or 5 - begin) > 5:
+            if ((end or 5) - begin) > 5:
                 msg = "The maximum duration is 5 seconds"
                 await ctx.send(msg)
                 return

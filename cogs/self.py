@@ -20,7 +20,7 @@ class Owner(commands.Cog):
     async def reload_(self, ctx, file):
         try:
             self.bot.reload_extension(f"cogs.{file}")
-            msg = f"`{file}.py` has been reloaded"
+            msg = f"{file}.py has been reloaded"
             logger.debug(msg)
 
         except commands.ExtensionNotLoaded:

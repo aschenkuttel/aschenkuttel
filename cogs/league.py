@@ -117,21 +117,28 @@ class Match:
         self.kills = self.player_stats['kills']
         self.deaths = self.player_stats['deaths']
         self.assists = self.player_stats['assists']
+        self.kd = self.kills / (self.deaths or 1)
         self.kda = (self.kills + self.assists) / (self.deaths or 1)
         self.str_kda = f"{self.kills}/{self.deaths}/{self.assists}"
 
         self.lane = self.player_data['timeline']['lane']
         self.role = self.player_data['timeline']['role']
 
-    def kill_participation(self):
+    def best_performance(self):
         parts = self.kills + self.assists
-
         team_kills = 0
+        kd_s = []
+
         for data in self.data['participants']:
             if data['teamId'] == self.team_data['teamId']:
-                team_kills += data['stats']['kills']
+                kills = data['stats']['kills']
+                team_kills += kills
+                kd = kills / (data['stats']['deaths'] or 1)
+                kd_s.append(kd)
 
-        return round(parts / (team_kills or 1))
+        best_kd = sorted(kd_s, reverse=True)[0]
+        percentage = round(parts / (team_kills or 1) * 100)
+        return self.kd == best_kd and percentage >= 65
 
     def carry(self):
         if not self.win:
@@ -139,10 +146,10 @@ class Match:
 
         dif = 0 if self.normal else 5
 
-        if self.kills >= (10 + dif) and self.kda >= 3:
+        if self.kills >= (10 + dif) and self.kd >= 3:
             return True
 
-        elif self.kill_participation() >= 0.5 and self.kda >= 3:
+        elif self.best_performance():
             return True
 
         elif self.role == "DUO_SUPPORT" or self.lane == "JUNGLE":
