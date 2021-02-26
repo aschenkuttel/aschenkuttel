@@ -81,6 +81,18 @@ class Summoner:
 
 
 class Match:
+    bad_queue_ids = (
+        0,
+        72,
+        820,
+        830,
+        840,
+        850,
+        2000,
+        2010,
+        2020
+    )
+
     def __init__(self, match, summoner_id):
         self.data = match
         self.summoner_id = summoner_id
@@ -88,6 +100,10 @@ class Match:
         self.player_data = None
 
         if self.data['gameType'] != "MATCHED_GAME":
+            self.inapplicable = True
+            return
+
+        elif self.data['queueId'] in self.bad_queue_ids:
             self.inapplicable = True
             return
 
@@ -123,6 +139,7 @@ class Match:
 
         self.lane = self.player_data['timeline']['lane']
         self.role = self.player_data['timeline']['role']
+        self.support = self.role == "DUO_SUPPORT"
 
     def best_performance(self):
         parts = self.kills + self.assists
@@ -152,7 +169,7 @@ class Match:
         elif self.best_performance():
             return True
 
-        elif self.role == "DUO_SUPPORT" or self.lane == "JUNGLE":
+        elif self.normal and (self.support or self.lane == "JUNGLE"):
             return self.assists >= (20 + dif * 2) and self.kda > 3
 
     def int(self):
