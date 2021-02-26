@@ -48,7 +48,7 @@ class Listen(commands.Cog):
             msg = "The Riot API is currently not responding"
 
         elif isinstance(error, commands.BadArgument):
-            msg = str(error)
+            msg = str(error)[:-1]
 
         if msg:
             await ctx.send(embed=utils.embed(msg, error=True))
