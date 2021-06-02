@@ -10,6 +10,7 @@ class Config(commands.Cog):
             'lobby',
             'prefix',
             'query',
+            'bdayboard',
             'starboard',
             'starcount',
             'league'
@@ -74,6 +75,21 @@ class Config(commands.Cog):
         else:
             self.config.store('query', query, ctx.guild.id)
             msg = f"`{query}` is now the active query"
+            await ctx.send(embed=utils.embed(msg))
+
+    @set.command(name="bdayboard")
+    async def bdayboard_(self, ctx):
+        """sets the bdayboard of your guild in which
+        birthdays of server members will be posted"""
+        channel_id = self.config.get('bdayboard', ctx.guild.id)
+
+        if channel_id == ctx.channel.id:
+            msg = "This channel is already the bdayboard"
+            await ctx.send(embed=utils.embed(msg, error=True))
+
+        else:
+            self.config.store('bdayboard', ctx.channel.id, ctx.guild.id)
+            msg = f"{ctx.channel.mention} is now the bdayboard"
             await ctx.send(embed=utils.embed(msg))
 
     @set.command(name="starboard")

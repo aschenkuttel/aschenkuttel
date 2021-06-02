@@ -23,21 +23,10 @@ class Icon(commands.Cog):
                 if key is None or not enabled:
                     continue
 
-                payload = {'query': key}
-                auth = {'Authorization': UNSPLASH_KEY}
-                async with self.bot.session.get(self.url, params=payload, headers=auth) as r:
-                    data = await r.json()
-
-                    try:
-                        small_url = data['urls']['small']
-                        async with self.bot.session.get(small_url) as resp:
-                            cache = await resp.read()
-
-                    except KeyError:
-                        continue
-
                 try:
-                    await guild.edit(icon=cache)
+                    cache = await self.bot.fetch_image(key)
+                    if cache is not None:
+                        await guild.edit(icon=cache)
 
                 except discord.Forbidden:
                     continue

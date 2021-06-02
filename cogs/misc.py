@@ -133,7 +133,7 @@ class Utils(commands.Cog):
         elif votes[0].count > votes[1].count:
             color = discord.Color.green()
             winner = re_fetched.reactions.index(votes[0])
-            msg = f"`{lines[winner]} won with {votes[0].count} votes!`"
+            msg = f"`{lines[winner]} won with {votes[0].count - 1} votes!`"
 
         else:
             msg = "`The poll resulted in a draw...`"

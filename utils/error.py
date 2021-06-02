@@ -16,3 +16,8 @@ class NoSummonerLinked(commands.CheckFailure):
 class NoRiotResponse(commands.CheckFailure):
     def __init__(self, ):
         super().__init__("Riot API not responding")
+
+
+class WrongDateFormat(commands.CheckFailure):
+    def __init__(self):
+        super().__init__("invalid date format")

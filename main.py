@@ -1,4 +1,4 @@
-from data.credentials import TOKEN, default_prefix
+from data.credentials import TOKEN, UNSPLASH_KEY, default_prefix
 from discord.ext import commands
 import aiosqlite
 import discord
@@ -10,6 +10,7 @@ import os
 
 default_cogs = [
     "admin",
+    "birthday",
     "config",
     "help",
     "icon",
@@ -77,7 +78,13 @@ class Aschenkuttel(commands.Bot):
                    'losses SMALLINT, tier TEXT, rank TEXT, ' \
                    'lp SMALLINT, last_match_id BIGINT)'
 
-        query_pool = (reminder, starboard, movies, summoner)
+        birthday = 'CREATE TABLE IF NOT EXISTS birthday' \
+                   '(guild_id BIGINT, user_id BIGINT, date TIMESTAMP, ' \
+                   'PRIMARY KEY (guild_id, user_id))'
+
+        query_pool = (reminder, starboard, movies,
+                      summoner, birthday)
+
         for query in query_pool:
             await self.execute(query)
 
@@ -98,6 +105,25 @@ class Aschenkuttel(commands.Bot):
     async def fetchrow(self, query, *args):
         cursor = await self.db.execute(query, args)
         return await cursor.fetchone()
+
+    async def fetch_image(self, query, file=True):
+        url = "https://api.unsplash.com/photos/random"
+        payload = {'query': query, 'orientation': "landscape"}
+        auth = {'Authorization': UNSPLASH_KEY}
+        async with self.session.get(url, params=payload, headers=auth) as r:
+            data = await r.json()
+
+            try:
+                small_url = data['urls']['small']
+
+                if file is True:
+                    async with self.session.get(small_url) as resp:
+                        return await resp.read()
+                else:
+                    return small_url
+
+            except KeyError:
+                return
 
     @staticmethod
     async def global_check(ctx):
