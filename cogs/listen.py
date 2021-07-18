@@ -47,6 +47,9 @@ class Listen(commands.Cog):
         elif isinstance(error, utils.NoRiotResponse):
             msg = "The Riot API is currently not responding"
 
+        elif isinstance(error, utils.NoBirthday):
+            msg = "you have no birthday xd"
+
         elif isinstance(error, commands.BadArgument):
             msg = str(error)[:-1]
 

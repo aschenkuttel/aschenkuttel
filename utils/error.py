@@ -21,3 +21,8 @@ class NoRiotResponse(commands.CheckFailure):
 class WrongDateFormat(commands.CheckFailure):
     def __init__(self):
         super().__init__("invalid date format")
+
+
+class NoBirthday(commands.CheckFailure):
+    def __init__(self):
+        super().__init__("missing birthday")

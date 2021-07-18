@@ -98,6 +98,7 @@ class Match:
         self.summoner_id = summoner_id
         self.inapplicable = False
         self.player_data = None
+        self.champion_id = None
 
         if self.data['gameType'] != "MATCHED_GAME":
             self.inapplicable = True
@@ -117,6 +118,7 @@ class Match:
             if data['participantId'] == participant_id:
                 self.player_data = data
                 self.player_stats = data['stats']
+                self.champion_id = data['championId']
 
         if self.player_data is None:
             self.inapplicable = True
@@ -184,6 +186,7 @@ class Match:
 
 class League(commands.Cog):
     base_url = "https://euw1.api.riotgames.com/lol"
+    champion_icon_url = "http://ddragon.leagueoflegends.com/cdn/11.14.1/img/champion/"
     # query = 'INSERT INTO summoner (user_id, id, account_id, puuid, ' \
     #         'name, icon_id, level, wins, losses, tier, rank, lp, last_match_id) ' \
     #         'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) ' \
@@ -226,23 +229,23 @@ class League(commands.Cog):
         ],
         'carry': [
             "Holy shit {0}, hast du gegen Bots gespielt\noder wie kommt `{1}` zusammen?",
-            "`{1}`, well played, {0}",
-            "`{1}`? NA-Soloqueue, right {0} xd",
+            "`{1}`,\nwell played, {0}",
+            "`{1}`? NA-Soloqueue,\nright {0} xd",
             "Yo {0}, wie viel zahlst du deinem\nBooster damit er für dich `{1}` geht?",
             "Hallo, Herr Doktor? Ja es geht um {0},\n"
             "er hatte grade ein `{1}` Game und ich glaube sein Rücken ist kaputt.",
-            "LOL {0}? `{1}`? Calm down Faker...",
-            "`{1}`! {0} vor, noch ein Tor!",
-            "Wait, {0}. Du hast ja doch Hände!? `{1}`, Wow!",
-            "Oida `{1}`. Hoffe dein Team hat dir 50 € gezahlt {0}"
+            "LOL {0}? `{1}`?\nCalm down Faker...",
+            "`{1}`! {0} vor,\nnoch ein Tor!",
+            "Wait, {0}.\nDu hast ja doch Hände!? `{1}`, Wow!",
+            "Oida `{1}`.\nHoffe dein Team hat dir 50 € gezahlt {0}"
         ],
         'int': [
-            "`{1}`. Dein fucking Ernst {0}? xd",
-            "Ähm {0}, willst du deinen Acc nicht mehr oder warum `{1}`?",
+            "`{1}`.\nDein fucking Ernst {0}? xd",
+            "Ähm {0}...,\nwillst du deinen Acc nicht mehr oder warum `{1}`?",
             "`{1}` XDDDDDDDDDDDDDD\nAch cmon {0}, das gibt so save nen Ban :D",
             "Hey {0}, wen bist du denn in dem Game runtergerannt?\n"
             "Wer hat nen `{1}`-Inter in seinen Games verdient?",
-            "`{1}`. Ich lass das mal unkommentiert so stehen, {0}",
+            "`{1}`.\nIch lass das mal unkommentiert so stehen, {0}",
             "Gerade {0}'s Matchhistory gecheckt und sehe `{1}`.\nAHAHAHAHAHAHAHAHAHAHA",
             "Hallo Riot Support? Es geht um {0}\nJa genau, das `{1}` Game. Danke :)",
         ]
@@ -303,17 +306,24 @@ class League(commands.Cog):
             id_ = int(pkg['key'])
             self.champion[id_] = pkg
 
-    async def send_embed(self, channel, summoner, msg):
-        path = f"{self.bot.path}/data/league/{summoner.tier}.png"
+    async def send_embed(self, channel, message, summoner=None, champion_id=None):
+        if summoner is not None:
+            path = f"{self.bot.path}/data/league/{summoner.tier}.png"
 
-        if os.path.isfile(path):
-            file = discord.File(path, filename="tier.png")
-            embed = discord.Embed(description=f"\u200b\n{msg}", colour=self.colour)
-            embed.set_thumbnail(url="attachment://tier.png")
-            await utils.silencer(channel.send(file=file, embed=embed))
-            await asyncio.sleep(2)
-        else:
-            logger.error(f"{path} not found")
+            if os.path.isfile(path):
+                file = discord.File(path, filename="tier.png")
+                embed = discord.Embed(description=f"\u200b\n{message}", colour=self.colour)
+                embed.set_thumbnail(url="attachment://tier.png")
+                await utils.silencer(channel.send(file=file, embed=embed))
+                await asyncio.sleep(2)
+            else:
+                logger.error(f"{path} not found")
+
+        elif champion_id is not None:
+            icon_name = self.champion[champion_id]['image']['full']
+            embed = discord.Embed(description=f"\u200b\n{message}", colour=self.colour)
+            embed.set_thumbnail(url=f"{self.champion_icon_url}{icon_name}")
+            await utils.silencer(channel.send(embed=embed))
 
     @tasks.loop(minutes=10)
     async def engine(self):
@@ -336,7 +346,6 @@ class League(commands.Cog):
             if channel is None:
                 continue
 
-            messages = []
             for member in guild.members:
                 old_summoner = self.summoner.get(member.id)
                 if old_summoner is None:
@@ -350,12 +359,12 @@ class League(commands.Cog):
                 if old_summoner.int_rank < summoner.int_rank:
                     base = random.choice(self.messages['up'])
                     msg = base.format(name, summoner.str_rank)
-                    await self.send_embed(channel, summoner, msg)
+                    await self.send_embed(channel, msg, summoner=summoner)
 
                 elif old_summoner.int_rank > summoner.int_rank:
                     base = random.choice(self.messages['down'])
                     msg = base.format(name, summoner.str_rank)
-                    await self.send_embed(channel, summoner, msg)
+                    await self.send_embed(channel, msg, summoner=summoner)
 
                 if old_summoner.last_match_id != summoner.last_match_id:
                     try:
@@ -372,21 +381,16 @@ class League(commands.Cog):
                     if match.carry():
                         base = random.choice(self.messages['carry'])
                         msg = base.format(name, match.str_kda)
-                        messages.append(msg)
+                        await self.send_embed(channel, msg, champion_id=match.champion_id)
 
                     elif match.int():
                         base = random.choice(self.messages['int'])
                         msg = base.format(name, match.str_kda)
-                        messages.append(msg)
+                        await self.send_embed(channel, msg, champion_id=match.champion_id)
 
                     elif base:
                         msg = base.format(name)
-                        messages.append(msg)
-
-            if messages:
-                description = "\n\n".join(messages)
-                embed = discord.Embed(description=description, colour=self.colour)
-                await utils.silencer(channel.send(embed=embed))
+                        await self.send_embed(channel, msg, champion_id=match.champion_id)
 
         self.summoner = current_summoner
         logger.debug("league engine done")
@@ -459,7 +463,7 @@ class League(commands.Cog):
                 return ranked
 
     async def fetch_matches(self, account_id):
-        url = f"{self.base_url}/match/v4/matchlists/by-account/{account_id}"
+        url = f"{self.base_url}/match/v5/matchlists/by-account/{account_id}"
         cache = await self.fetch(url)
         if cache is not None:
             return cache.get('matches')
