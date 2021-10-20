@@ -107,7 +107,7 @@ class Birthday(commands.Cog):
 
     async def fetch_birthday(self, ctx, suppress=False):
         query = 'SELECT * FROM birthday WHERE guild_id = $1 AND user_id = $2'
-        response = await self.bot.fetchrow(query, ctx.guild.id, ctx.author.id)
+        response = await self.bot.fetchone(query, ctx.guild.id, ctx.author.id)
 
         if response is not None:
             return Birthdate(response)
@@ -184,7 +184,7 @@ class Birthday(commands.Cog):
             await self.bot.execute(query, ctx.guild.id, ctx.author.id, birthday_date)
 
             date_rep = birthday_date.strftime(Birthdate.preset)
-            await ctx.send(f"you're birthday `{date_rep}` got registered")
+            await ctx.send(f"your birthday `{date_rep}` got registered")
 
     @commands.command(name="insecure")
     async def insecure_(self, ctx):

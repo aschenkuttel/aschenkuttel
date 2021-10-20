@@ -1,4 +1,3 @@
-from data.credentials import UNSPLASH_KEY
 from utils import get_seconds_till
 from discord.ext import commands
 import asyncio

@@ -1,7 +1,10 @@
 from utils import Keyword
+import logging
 import datetime
 import discord
 import re
+
+logger = logging.getLogger('self')
 
 
 def get_seconds_till(**kwargs):
@@ -15,7 +18,8 @@ async def silencer(coroutine):
     try:
         response = await coroutine
         return response
-    except (discord.Forbidden, discord.HTTPException):
+    except (discord.Forbidden, discord.HTTPException) as error:
+        logger.debug(f"silenced: {error}")
         return False
 
 

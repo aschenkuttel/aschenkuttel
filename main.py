@@ -102,7 +102,7 @@ class Aschenkuttel(commands.Bot):
         cursor = await self.db.execute(query, args)
         return await cursor.fetchall()
 
-    async def fetchrow(self, query, *args):
+    async def fetchone(self, query, *args):
         cursor = await self.db.execute(query, args)
         return await cursor.fetchone()
 

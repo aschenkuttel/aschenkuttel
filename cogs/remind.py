@@ -78,7 +78,7 @@ class Reminder(commands.Cog):
 
             if not self.current_reminder:
                 query = 'SELECT * FROM reminder ORDER BY expiration'
-                data = await self.bot.fetchrow(query)
+                data = await self.bot.fetchone(query)
 
                 if data is not None:
                     self.current_reminder = Timer(self.bot, data)
@@ -196,7 +196,7 @@ class Reminder(commands.Cog):
     async def remove_(self, ctx, reminder_id: int):
         """removes reminder with given id"""
         query = 'DELETE FROM reminder WHERE author_id = $1 AND id = $2'
-        response = await self.bot.fetchrow(query, ctx.author.id, reminder_id)
+        response = await self.bot.fetchone(query, ctx.author.id, reminder_id)
         await self.bot.db.commit()
 
         if response == "DELETE 0":

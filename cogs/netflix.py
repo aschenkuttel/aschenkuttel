@@ -40,6 +40,7 @@ class Movie:
     def url(self):
         return f"https://www.netflix.com/watch/{self.id}"
 
+
     @property
     def mention(self):
         return f"[{self.title}]({self.url})"

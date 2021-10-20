@@ -94,7 +94,7 @@ class Match:
     )
 
     def __init__(self, match, summoner_id):
-        self.data = match
+        self.data = match['info']
         self.summoner_id = summoner_id
         self.inapplicable = False
         self.player_data = None
@@ -108,16 +108,9 @@ class Match:
             self.inapplicable = True
             return
 
-        participant_id = None
-        for data in self.data['participantIdentities']:
-            if data['player']['summonerId'] == summoner_id:
-                participant_id = data['participantId']
-                break
-
         for data in self.data['participants']:
-            if data['participantId'] == participant_id:
+            if data['summonerId'] == summoner_id:
                 self.player_data = data
-                self.player_stats = data['stats']
                 self.champion_id = data['championId']
 
         if self.player_data is None:
@@ -129,18 +122,18 @@ class Match:
             if team['teamId'] == team_id:
                 self.team_data = team
 
-        self.win = self.team_data['win'] == "Win"
+        self.win = self.team_data['win']
         self.normal = self.data['gameMode'] == "CLASSIC"
 
-        self.kills = self.player_stats['kills']
-        self.deaths = self.player_stats['deaths']
-        self.assists = self.player_stats['assists']
+        self.kills = self.player_data['kills']
+        self.deaths = self.player_data['deaths']
+        self.assists = self.player_data['assists']
         self.kd = self.kills / (self.deaths or 1)
         self.kda = (self.kills + self.assists) / (self.deaths or 1)
         self.str_kda = f"{self.kills}/{self.deaths}/{self.assists}"
 
-        self.lane = self.player_data['timeline']['lane']
-        self.role = self.player_data['timeline']['role']
+        self.lane = self.player_data['lane']
+        self.role = self.player_data['role']
         self.support = self.role == "DUO_SUPPORT"
 
     def best_performance(self):
@@ -150,9 +143,9 @@ class Match:
 
         for data in self.data['participants']:
             if data['teamId'] == self.team_data['teamId']:
-                kills = data['stats']['kills']
+                kills = data['kills']
                 team_kills += kills
-                kd = kills / (data['stats']['deaths'] or 1)
+                kd = kills / (data['deaths'] or 1)
                 kd_s.append(kd)
 
         best_kd = sorted(kd_s, reverse=True)[0]
@@ -185,7 +178,8 @@ class Match:
 
 
 class League(commands.Cog):
-    base_url = "https://euw1.api.riotgames.com/lol"
+    euw_base_url = "https://euw1.api.riotgames.com/lol"
+    europe_base_url = "https://europe.api.riotgames.com/lol"
     champion_icon_url = "http://ddragon.leagueoflegends.com/cdn/11.14.1/img/champion/"
     # query = 'INSERT INTO summoner (user_id, id, account_id, puuid, ' \
     #         'name, icon_id, level, wins, losses, tier, rank, lp, last_match_id) ' \
@@ -437,7 +431,7 @@ class League(commands.Cog):
                 raise utils.NoRiotResponse()
 
     async def fetch_summoner_basic(self, argument, id_=False):
-        base = f"{self.base_url}/summoner/v4/summoners"
+        base = f"{self.euw_base_url}/summoner/v4/summoners"
 
         if id_ is True:
             url = f"{base}/by-account/{argument}"
@@ -445,13 +439,14 @@ class League(commands.Cog):
             url = f"{base}/by-name/{argument}"
 
         result = await self.fetch(url)
+
         if result is None:
             raise utils.SummonerNotFound(argument)
         else:
             return result
 
     async def fetch_league(self, id_):
-        url = f"{self.base_url}/league/v4/entries/by-summoner/{id_}"
+        url = f"{self.euw_base_url}/league/v4/entries/by-summoner/{id_}"
         cache = await self.fetch(url)
 
         if cache is None:
@@ -462,14 +457,14 @@ class League(commands.Cog):
             if q_type == "RANKED_SOLO_5x5":
                 return ranked
 
-    async def fetch_matches(self, account_id):
-        url = f"{self.base_url}/match/v5/matchlists/by-account/{account_id}"
+    async def fetch_matches(self, puuid):
+        url = f"{self.europe_base_url}/match/v5/matches/by-puuid/{puuid}/ids?start=0&count=1"
         cache = await self.fetch(url)
         if cache is not None:
-            return cache.get('matches')
+            return cache
 
     async def fetch_match(self, match_id):
-        url = f"{self.base_url}/match/v4/matches/{match_id}"
+        url = f"{self.europe_base_url}/match/v5/matches/{match_id}"
         return await self.fetch(url)
 
     async def fetch_summoner(self, argument, id_=False):
@@ -479,13 +474,13 @@ class League(commands.Cog):
             data = argument
 
         rank_data = await self.fetch_league(data['id'])
-        matches = await self.fetch_matches(data['accountId'])
+        matches = await self.fetch_matches(data['puuid'])
 
         if rank_data is not None:
             data.update(rank_data)
 
         if matches:
-            data['last_match_id'] = matches[0]['gameId']
+            data['last_match_id'] = matches[0]
 
         return data
 
