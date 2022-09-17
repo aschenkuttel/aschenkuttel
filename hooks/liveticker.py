@@ -6,6 +6,7 @@ import discord
 import time
 
 article_url = "https://www.br.de/nachrichten/deutschland-welt/russland-ukraine-krieg-news-ticker-kw12"
+# yikes leaked it xddddd already deleted tho, no need to try xd
 hook_url = 'https://discord.com/api/webhooks/945623544585416715/anbgNXHkA4gmqKXCUS4gEVJ33n0P2xKflR0Swh2j8tyxCcynsgNvC5I4chFVOALOPyrQ'
 webhook = Webhook.from_url(hook_url, adapter=RequestsWebhookAdapter())
 session = requests.Session()
