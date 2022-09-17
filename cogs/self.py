@@ -1,4 +1,4 @@
-from discord.ext import commands
+from discord.ext import commands, tasks
 import logging
 
 
@@ -42,5 +42,5 @@ class Owner(commands.Cog):
             await ctx.send(error)
 
 
-def setup(bot):
-    bot.add_cog(Owner(bot))
+async def setup(bot):
+    await bot.add_cog(Owner(bot))

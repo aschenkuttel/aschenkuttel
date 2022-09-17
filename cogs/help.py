@@ -65,5 +65,5 @@ class Help(commands.Cog):
             await ctx.send(f"```markdown\n{help_content}\n```")
 
 
-def setup(bot):
-    bot.add_cog(Help(bot))
+async def setup(bot):
+    await bot.add_cog(Help(bot))

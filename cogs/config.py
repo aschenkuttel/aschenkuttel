@@ -8,16 +8,13 @@ class Config(commands.Cog):
         self.bot = bot
         self.keywords = [
             'lobby',
-            'prefix',
-            'query',
             'bdayboard',
             'starboard',
             'starcount',
             'league'
         ]
         self.features = [
-            'sound',
-            'icon'
+            'sound'
         ]
         self.config = self.bot.config
 
@@ -48,34 +45,6 @@ class Config(commands.Cog):
             fail = False
 
         await ctx.send(embed=utils.embed(msg, error=fail))
-
-    @set.command(name="prefix")
-    async def prefix_(self, ctx, new_prefix):
-        """sets the guilds prefix of the bot"""
-        prefix = self.config.get('prefix', ctx.guild.id)
-
-        if prefix == new_prefix:
-            msg = "This prefix is already the current one"
-            await ctx.send(embed=utils.embed(msg, error=True))
-
-        else:
-            self.config.store('prefix', new_prefix, ctx.guild.id)
-            msg = f"`{new_prefix}` is now the new prefix"
-            await ctx.send(embed=utils.embed(msg))
-
-    @set.command(name="query")
-    async def icon_(self, ctx, query):
-        """sets the icon query of your guild"""
-        current_query = self.config.get('query', ctx.guild.id)
-
-        if query == current_query:
-            msg = "This keyword is already the query"
-            await ctx.send(embed=utils.embed(msg, error=True))
-
-        else:
-            self.config.store('query', query, ctx.guild.id)
-            msg = f"`{query}` is now the active query"
-            await ctx.send(embed=utils.embed(msg))
 
     @set.command(name="bdayboard")
     async def bdayboard_(self, ctx):
@@ -230,5 +199,5 @@ class Config(commands.Cog):
         await ctx.send(embed=utils.embed(msg))
 
 
-def setup(bot):
-    bot.add_cog(Config(bot))
+async def setup(bot):
+    await bot.add_cog(Config(bot))

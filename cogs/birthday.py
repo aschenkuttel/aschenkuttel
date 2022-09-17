@@ -154,7 +154,7 @@ class Birthday(commands.Cog):
 
     @commands.command(name="birthday")
     async def birthday_(self, ctx, date_str=None):
-        """Either seits/changes your birthday or
+        """Either sets/changes your birthday or
         displays your birthday if no argument is given"""
         date = await self.fetch_birthday(ctx, suppress=True)
 
@@ -196,5 +196,5 @@ class Birthday(commands.Cog):
         await ctx.send("birthday deleted you insecure thing")
 
 
-def setup(bot):
-    bot.add_cog(Birthday(bot))
+async def setup(bot):
+    await bot.add_cog(Birthday(bot))

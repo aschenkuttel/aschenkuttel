@@ -13,7 +13,6 @@ default_cogs = [
     "birthday",
     "config",
     "help",
-    "icon",
     "league",
     "listen",
     "misc",
@@ -27,12 +26,16 @@ default_cogs = [
 
 class Aschenkuttel(commands.Bot):
     def __init__(self, *args, **kwargs):
-        super().__init__(command_prefix=self.prefix, *args, **kwargs)
+        intents = discord.Intents.default()
+        intents.message_content = True
+        intents.members = True
+        kwargs['intents'] = intents
+        super().__init__(*args, **kwargs)
         self.path = os.path.dirname(__file__)
         self.default_prefix = default_prefix
 
         self.config = utils.ConfigHandler(self)
-        self._lock = asyncio.Event()
+        self._lock = None
         self.session = None
         self.db = None
 
@@ -40,15 +43,15 @@ class Aschenkuttel(commands.Bot):
         self.add_check(self.global_check)
         self.help_command = None
         self.setup_loggers()
-        self.setup_cogs()
 
-    async def on_ready(self):
-        if not self._lock.is_set():
-            self.session = aiohttp.ClientSession(loop=self.loop)
+    async def setup_hook(self):
+        self._lock = asyncio.Event()
+        self.session = aiohttp.ClientSession(loop=self.loop)
+        await self.setup_cogs()
 
-            db_path = f"{self.path}/data/database.db"
-            self.db = await aiosqlite.connect(db_path)
-            await self.setup_tables()
+        db_path = f"{self.path}/data/database.db"
+        self.db = await aiosqlite.connect(db_path)
+        await self.setup_tables()
 
         self._lock.set()
         print("Once upon a time...")
@@ -136,13 +139,6 @@ class Aschenkuttel(commands.Bot):
         else:
             return True
 
-    async def prefix(self, _, message):
-        if message.guild is None:
-            return self.default_prefix
-
-        prefix = self.config.get('prefix', message.guild.id)
-        return prefix or self.default_prefix
-
     def setup_loggers(self):
         for name in ('discord', 'self'):
             logger = logging.getLogger(name)
@@ -153,19 +149,14 @@ class Aschenkuttel(commands.Bot):
             handler.setFormatter(logging.Formatter(format_str))
             logger.addHandler(handler)
 
-    def setup_cogs(self):
+    async def setup_cogs(self):
         for file in default_cogs:
             try:
                 cog_path = f"cogs.{file}"
-                self.load_extension(cog_path)
+                await self.load_extension(cog_path)
             except commands.ExtensionNotFound:
                 print(f"module {file} not found")
 
 
-intents = discord.Intents.default()
-intents.presences = False
-intents.typing = False
-intents.members = True
-
-self = Aschenkuttel(intents=intents)
+self = Aschenkuttel(command_prefix=".")
 self.run(TOKEN)

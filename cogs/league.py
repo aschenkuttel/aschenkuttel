@@ -1,5 +1,7 @@
+import aiohttp
 from discord.ext import commands, tasks
 from data.credentials import RITO_KEY
+from datetime import datetime
 from typing import Union
 import asyncio
 import discord
@@ -81,16 +83,12 @@ class Summoner:
 
 
 class Match:
-    bad_queue_ids = (
-        0,
-        72,
-        820,
-        830,
-        840,
-        850,
-        2000,
-        2010,
-        2020
+    valid_queue_ids = (
+        2,  # 5v5 Blind Pick
+        4,  # 5v5 Ranked Solo
+        6,  # 5v5 Ranked Pre
+        14,  # 5v5 Draft Pick
+        42  # 5v5 Ranked Team
     )
 
     def __init__(self, match, summoner_id):
@@ -100,31 +98,22 @@ class Match:
         self.player_data = None
         self.champion_id = None
 
-        if self.data['gameType'] != "MATCHED_GAME":
+        if (datetime.utcnow().timestamp() - (self.data['gameEndTimestamp'] / 1000)) > 7200:
             self.inapplicable = True
             return
 
-        elif self.data['queueId'] in self.bad_queue_ids:
+        if self.data['queueId'] not in self.valid_queue_ids:
             self.inapplicable = True
             return
 
-        for data in self.data['participants']:
-            if data['summonerId'] == summoner_id:
-                self.player_data = data
-                self.champion_id = data['championId']
+        participants_dict = {player['summonerId']: player for player in self.data['participants']}
+        self.player_data = participants_dict[self.summoner_id]
+        self.champion_id = self.player_data['championId']
 
-        if self.player_data is None:
-            self.inapplicable = True
-            return
-
-        team_id = self.player_data['teamId']
-        for team in self.data['teams']:
-            if team['teamId'] == team_id:
-                self.team_data = team
+        team_dict = {team['teamId']: team for team in self.data['teams']}
+        self.team_data = team_dict[self.player_data['teamId']]
 
         self.win = self.team_data['win']
-        self.normal = self.data['gameMode'] == "CLASSIC"
-
         self.kills = self.player_data['kills']
         self.deaths = self.player_data['deaths']
         self.assists = self.player_data['assists']
@@ -141,11 +130,10 @@ class Match:
         team_kills = 0
         kd_s = []
 
-        for data in self.data['participants']:
-            if data['teamId'] == self.team_data['teamId']:
-                kills = data['kills']
-                team_kills += kills
-                kd = kills / (data['deaths'] or 1)
+        for player in self.data['participants']:
+            if player['teamId'] == self.team_data['teamId']:
+                team_kills += player['kills']
+                kd = player['kills'] / (player['deaths'] or 1)
                 kd_s.append(kd)
 
         best_kd = sorted(kd_s, reverse=True)[0]
@@ -156,20 +144,17 @@ class Match:
         if not self.win:
             return
 
-        dif = 0 if self.normal else 5
-
-        if self.kills >= (10 + dif) and self.kd >= 3:
+        if self.kills > 7 and self.kd >= 2.5:
             return True
 
         elif self.best_performance():
             return True
 
-        elif self.normal and (self.support or self.lane == "JUNGLE"):
-            return self.assists >= (20 + dif * 2) and self.kda > 3
+        elif self.support or self.lane == "JUNGLE":
+            return self.kda > 3
 
     def int(self):
-        dif = 0 if self.normal else 4
-        return self.deaths >= (10 + dif) and self.kda <= 0.4
+        return self.kda < 1 and self.deaths > 3
 
     def special_scenario(self):
         if self.summoner_id == "KenEY1p1tyFRVd4tZnr3YYX5FZxwMEzqeOFrG4C7E_HE6IE":
@@ -275,7 +260,7 @@ class League(commands.Cog):
                 resp = summoner.failed_attempt()
 
                 if resp is True:
-                    query = f'DELETE FROM summoner WHERE user_id = $1'
+                    query = 'DELETE FROM summoner WHERE user_id = $1'
                     await self.bot.execute(query, summoner.user_id)
                 else:
                     summoners[user_id] = summoner
@@ -301,7 +286,7 @@ class League(commands.Cog):
             self.champion[id_] = pkg
 
     async def send_embed(self, channel, message, summoner=None, champion_id=None):
-        if summoner is not None:
+        if summoner is not None and summoner.tier is not None:
             path = f"{self.bot.path}/data/league/{summoner.tier}.png"
 
             if os.path.isfile(path):
@@ -319,18 +304,23 @@ class League(commands.Cog):
             embed.set_thumbnail(url=f"{self.champion_icon_url}{icon_name}")
             await utils.silencer(channel.send(embed=embed))
 
-    @tasks.loop(minutes=10)
+    @tasks.loop(minutes=5)
     async def engine(self):
+        logger.debug("League: loop start")
+
         if not self._reload_lock.is_set():
             await self.load_summoner()
+            logger.debug("League: summoners loaded")
             return
 
         try:
             current_summoner = await self.refresh_summoner()
-        except utils.NoRiotResponse:
+        except (utils.NoRiotResponse, aiohttp.ClientConnectorError):
+            logger.debug("League Loop: no API response")
             return
 
         if current_summoner is None:
+            logger.debug("League: no current summoner")
             return
 
         for guild in self.bot.guilds:
@@ -338,6 +328,7 @@ class League(commands.Cog):
             channel = guild.get_channel(channel_id)
 
             if channel is None:
+                logger.debug(f"League: {guild.id} has no league channel")
                 continue
 
             for member in guild.members:
@@ -350,6 +341,7 @@ class League(commands.Cog):
                     continue
 
                 name = f"[{member.display_name}]({summoner.op_gg})"
+
                 if old_summoner.int_rank < summoner.int_rank:
                     base = random.choice(self.messages['up'])
                     msg = base.format(name, summoner.str_rank)
@@ -370,8 +362,6 @@ class League(commands.Cog):
                     if match.inapplicable:
                         continue
 
-                    base = match.special_scenario()
-
                     if match.carry():
                         base = random.choice(self.messages['carry'])
                         msg = base.format(name, match.str_kda)
@@ -382,18 +372,22 @@ class League(commands.Cog):
                         msg = base.format(name, match.str_kda)
                         await self.send_embed(channel, msg, champion_id=match.champion_id)
 
-                    elif base:
+                    elif base := match.special_scenario():
                         msg = base.format(name)
                         await self.send_embed(channel, msg, champion_id=match.champion_id)
 
         self.summoner = current_summoner
-        logger.debug("league engine done")
+        logger.debug("League: loop end")
+
+    @engine.error
+    async def on_engine_error(self, error):
+        logger.error(f"League: {error}")
 
     def get_summoner_by_member(self, ctx, argument):
         if argument is None:
             member = ctx.author
         else:
-            member = utils.get_member_named(ctx, argument)
+            member = utils.get_member_by_name(ctx, argument)
 
         if member is not None:
             summoner = self.summoner.get(member.id)
@@ -561,5 +555,5 @@ class League(commands.Cog):
         await ctx.send(f"`{username}` is {msg}")
 
 
-def setup(bot):
-    bot.add_cog(League(bot))
+async def setup(bot):
+    await bot.add_cog(League(bot))

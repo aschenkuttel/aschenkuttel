@@ -40,7 +40,6 @@ class Movie:
     def url(self):
         return f"https://www.netflix.com/watch/{self.id}"
 
-
     @property
     def mention(self):
         return f"[{self.title}]({self.url})"
@@ -210,5 +209,5 @@ class Netflix(commands.Cog):
             await ctx.send("no movies found")
 
 
-def setup(bot):
-    bot.add_cog(Netflix(bot))
+async def setup(bot):
+    await bot.add_cog(Netflix(bot))

@@ -48,14 +48,12 @@ class Sounds(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
+        print(member.name)
         if before.channel == after.channel:
             return
 
         guild = member.guild
         vc = guild.voice_client
-
-        if guild in self.lock:
-            return
 
         active = self.config.get('sound', guild.id)
         if not active:
@@ -73,9 +71,7 @@ class Sounds(commands.Cog):
 
             if after.channel == most_people and guild.me not in most_people.members:
                 logger.debug(f'connecting to channel {most_people}')
-                self.lock.append(guild)
                 await asyncio.sleep(1)
-                self.lock.remove(guild)
 
                 if vc is None:
                     await most_people.connect()
@@ -111,10 +107,8 @@ class Sounds(commands.Cog):
         if vc.channel in (before.channel, after.channel):
             # bot join connect which seems to take a while internally
             if guild.me == member:
-
-                if before.channel is None:
-                    while not vc.is_connected():
-                        await asyncio.sleep(0.5)
+                while not vc.is_connected():
+                    await asyncio.sleep(0.2)
 
                 else:
                     member_ids = self.cache.get(guild, [])
@@ -221,5 +215,5 @@ class Sounds(commands.Cog):
                 await ctx.send(f"You don't have a {state} sound")
 
 
-def setup(bot):
-    bot.add_cog(Sounds(bot))
+async def setup(bot):
+    await bot.add_cog(Sounds(bot))

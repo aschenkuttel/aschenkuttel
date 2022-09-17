@@ -64,11 +64,14 @@ class DefaultDict(dict):
         self.default = default
 
     def __getitem__(self, item):
-        if item in self.keys():
-            return dict.__getitem__(self, item)
+        value = self.get(item)
+
+        if value is not None:
+            return value
+
         else:
-            self[item] = self.default()
-            return dict.__getitem__(self, item)
+            value = self[item] = self.default()
+            return value
 
 
 class Keyword:
@@ -94,7 +97,7 @@ class Keyword:
 
 class Member(commands.Converter):
     async def convert(self, ctx, argument):
-        member = utils.get_member_named(ctx, argument)
+        member = utils.get_member_by_name(ctx, argument)
         if member is None:
             raise commands.MemberNotFound(argument)
         else:

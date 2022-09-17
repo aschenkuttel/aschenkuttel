@@ -24,12 +24,9 @@ async def silencer(coroutine):
 
 
 def embed(msg, *, footer=None, error=False):
-    if error:
-        color = discord.Color.red()
-    else:
-        color = discord.Color.blue()
-
+    color = discord.Color.red() if error else discord.Color.blue()
     self = discord.Embed(description=msg, color=color)
+
     if footer:
         self.set_footer(text=footer)
 
@@ -38,18 +35,18 @@ def embed(msg, *, footer=None, error=False):
 
 def keyword(options, strip=False, **kwargs, ):
     raw_input = options or ''
-    troops = re.findall(r'[^=\W]{3,}[<=>][^=\s]+', raw_input)
+    matches = re.findall(r'[^=\W]{3,}[<=>][^=\s]+', raw_input)
     cache = {}
 
-    for troop in troops:
+    for match in matches:
         if strip:
-            raw_input = raw_input.replace(troop, '')
+            raw_input = raw_input.replace(match, '')
 
-        sign = re.findall(r'[<=>]', troop.lower())[0]
-        if troop.count(sign) != 1:
+        sign = re.findall(r'[<=>]', match.lower())[0]
+        if match.count(sign) != 1:
             continue
 
-        orig_key, input_value = troop.split(sign)
+        orig_key, input_value = match.split(sign)
         key, value = orig_key.lower(), input_value.lower()
 
         try:
@@ -109,24 +106,23 @@ def keyword(options, strip=False, **kwargs, ):
 
 def parse_integer(user_input, default, boundaries=None):
     if not isinstance(user_input, int):
-        result = default
-    else:
-        result = user_input
+        return default
 
     if boundaries:
         minimum, maximum = boundaries
         if user_input < minimum:
-            result = minimum
+            return minimum
         elif user_input > maximum:
-            result = maximum
+            return maximum
 
-    return result
+    return user_input
 
 
 def input_to_seconds(user_input):
     seconds = 0
     seconds_per_unit = {"s": 1, "m": 60, "h": 3600}
     matches = re.findall(r'\d+\w', user_input)
+
     for match in matches:
         if match.isdigit():
             seconds += int(match)
@@ -137,7 +133,7 @@ def input_to_seconds(user_input):
     return seconds
 
 
-def get_member_named(ctx, name):
+def get_member_by_name(ctx, name):
     lower_name = name.lower()
     for member in ctx.guild.members:
         if member.display_name.lower() == lower_name:

@@ -92,5 +92,5 @@ class Starboard(commands.Cog):
                     await self.star_message(message, channel)
 
 
-def setup(bot):
-    bot.add_cog(Starboard(bot))
+async def setup(bot):
+    await bot.add_cog(Starboard(bot))
