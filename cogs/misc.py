@@ -44,7 +44,7 @@ class Utils(commands.Cog):
         or yourself if no member passed in the arguments"""
         member = member or ctx.author
         embed = discord.Embed()
-        embed.set_image(url=member.avatar_url)
+        embed.set_image(url=member.display_avatar.url)
         await ctx.send(embed=embed)
 
     @commands.command(name="icon")
