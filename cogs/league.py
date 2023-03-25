@@ -304,7 +304,7 @@ class League(commands.Cog):
             embed.set_thumbnail(url=f"{self.champion_icon_url}{icon_name}")
             await utils.silencer(channel.send(embed=embed))
 
-    @tasks.loop(minutes=5)
+    @tasks.loop(minutes=60)
     async def engine(self):
         logger.debug("League: loop start")
 
@@ -355,9 +355,14 @@ class League(commands.Cog):
                 if old_summoner.last_match_id != summoner.last_match_id:
                     try:
                         match_data = await self.fetch_match(summoner.last_match_id)
-                        match = Match(match_data, summoner.id)
+
+                        if match_data is None:
+                            continue
+
                     except utils.NoRiotResponse:
                         continue
+
+                    match = Match(match_data, summoner.id)
 
                     if match.inapplicable:
                         continue
@@ -382,6 +387,7 @@ class League(commands.Cog):
     @engine.error
     async def on_engine_error(self, error):
         logger.error(f"League: {error}")
+        raise error
 
     def get_summoner_by_member(self, ctx, argument):
         if argument is None:
