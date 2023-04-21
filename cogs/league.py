@@ -357,14 +357,17 @@ class League(commands.Cog):
                         match_data = await self.fetch_match(summoner.last_match_id)
 
                         if match_data is None:
+                            logger.debug(f"League: {summoner.last_match_id} is not a valid match")
                             continue
 
                     except utils.NoRiotResponse:
+                        logger.debug("League: no API response")
                         continue
 
                     match = Match(match_data, summoner.id)
 
                     if match.inapplicable:
+                        logger.debug(f"Irrelevant match: {summoner.last_match_id}")
                         continue
 
                     if match.carry():
