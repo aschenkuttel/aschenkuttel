@@ -10,6 +10,8 @@ import io
 logger = logging.getLogger('self')
 
 
+#  TODO: join after start up
+
 class Sounds(commands.Cog):
     def __init__(self, bot):
         self.bot = bot

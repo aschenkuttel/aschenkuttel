@@ -19,7 +19,7 @@ class Owner(commands.Cog):
     @commands.command(name="reload")
     async def reload_(self, ctx, file):
         try:
-            self.bot.reload_extension(f"cogs.{file}")
+            await self.bot.reload_extension(f"cogs.{file}")
             msg = f"{file}.py has been reloaded"
             logger.debug(msg)
 
