@@ -3,6 +3,7 @@ from discord.ext import commands, tasks
 from data.credentials import RITO_KEY
 from datetime import datetime
 from typing import Union
+import traceback
 import asyncio
 import discord
 import logging
@@ -84,11 +85,10 @@ class Summoner:
 
 class Match:
     valid_queue_ids = (
-        2,  # 5v5 Blind Pick
-        4,  # 5v5 Ranked Solo
-        6,  # 5v5 Ranked Pre
-        14,  # 5v5 Draft Pick
-        42  # 5v5 Ranked Team
+        400,  # 5v5 Draft Pick
+        420,  # 5v5 Ranked Solo
+        430,  # 5v5 Blind Pick
+        440,  # 5v5 Ranked Flex
     )
 
     def __init__(self, match, summoner_id):
@@ -99,10 +99,13 @@ class Match:
         self.champion_id = None
 
         if (datetime.utcnow().timestamp() - (self.data['gameEndTimestamp'] / 1000)) > 7200:
+            logger.info(f"Match {self.data['gameId']} is too old")
             self.inapplicable = True
             return
 
         if self.data['queueId'] not in self.valid_queue_ids:
+            logger.info(type(self.data['queueId']))
+            logger.info(f"Match {self.data['queueId']} is not a valid queue id")
             self.inapplicable = True
             return
 
@@ -154,7 +157,7 @@ class Match:
             return self.kda > 3
 
     def int(self):
-        return self.kda < 1 and self.deaths > 3
+        return self.kda < 0.75 and self.deaths > 7
 
     def special_scenario(self):
         if self.summoner_id == "KenEY1p1tyFRVd4tZnr3YYX5FZxwMEzqeOFrG4C7E_HE6IE":
@@ -197,14 +200,23 @@ class League(commands.Cog):
             "{0}\nhat sich`{1}` erkämpft!",
             "Endlich `{1}`,\ngood job {0}",
             "Wow, `{1}`!\nWell played {0}",
-            "Oha, {0} ist jetzt `{1}`.\nHätte ich ihm niemals zugetraut!"
+            "Oha, {0} ist jetzt `{1}`.\nHätte ich ihm niemals zugetraut!",
+            "Hey {0}, `{1}`? Haste dafür dein letztes Taschengeld ausgegeben?",
+            "Boah, `{1}`! {0}, haste heimlich trainiert?",
+            "Krass, {0} ist jetzt `{1}`. Wer hätte das gedacht?!"
         ],
         'down': [
-            "Glückwunsch {0},\ndu bist nach {1} abgestiegen...",
+            "Glückwunsch {0},\ndu bist nach `{1}` abgestiegen...",
             "`{1}`. Good Job {0}\nSind sicher deine Teammates schuld, right?",
             "{0} ist auf dem Weg nach Iron!\nAktuelle Station: `{1}`",
             "`{1}`.\nDein Ernst {0}? xd",
             "Yo {0},\nhattest du Lags oder wieso `{1}`?",
+            "RIP {0}, `{1}` erreicht... Haste den Absturz wenigstens gefilmt?",
+            "`{1}`. GJ {0}, willkommen zurück in der Elo-Hell!",
+            "`{1}`. Echt jetzt, {0}? Haste mit den Füßen gespielt?",
+            "Yo {0}, was lief schief, dass du in `{1}` gelandet bist? Account-Sharing?",
+            "{0}, `{1}`... Musst wohl noch paar Tutorials schauen, hm?",
+            "Autsch {0}, `{1}` erreicht. Wann kommt der Comeback-Stream?"
         ],
         'carry': [
             "Holy shit {0}, hast du gegen Bots gespielt\noder wie kommt `{1}` zusammen?",
@@ -216,7 +228,11 @@ class League(commands.Cog):
             "LOL {0}? `{1}`?\nCalm down Faker...",
             "`{1}`! {0} vor,\nnoch ein Tor!",
             "Wait, {0}.\nDu hast ja doch Hände!? `{1}`, Wow!",
-            "Oida `{1}`.\nHoffe dein Team hat dir 50 € gezahlt {0}"
+            "Oida `{1}`.\nHoffe dein Team hat dir 50 € gezahlt {0}",
+            "Hey {0}, war das `{1}` Game eine Audition für LCS oder was?",
+            "Schick mir bitte das Video, wie du mit verbundenen Augen `{1}` erreichst, {0}!",
+            "Gz {0}, mit `{1}` hast du gerade die Definition von 'Carry' neu geschrieben!",
+            "Mein lieber {0}, das `{1}` Game war schlichtweg beeindruckend!"
         ],
         'int': [
             "`{1}`.\nDein fucking Ernst {0}? xd",
@@ -227,6 +243,12 @@ class League(commands.Cog):
             "`{1}`.\nIch lass das mal unkommentiert so stehen, {0}",
             "Gerade {0}'s Matchhistory gecheckt und sehe `{1}`.\nAHAHAHAHAHAHAHAHAHAHA",
             "Hallo Riot Support? Es geht um {0}\nJa genau, das `{1}` Game. Danke :)",
+            "{1}? Hey {0}, hoffentlich hast du ein gutes Rückgaberecht für deine ELO!",
+            "Hallo {0}, wollte fragen, ob du das `{1}` Game als Kunstprojekt siehst?",
+            "{1}, {0}. Mit welcher Hand spielst du normalerweise?",
+            "Hey {0}, war das `{1}` Game ein Experiment, um zu sehen, wie weit man sinken kann?",
+            "Lieber {0}, war das `{1}` Game ein Tribut an alte Bronze-Zeiten?",
+            "Oh je, {0}. Ich hoffe, das `{1}` Game hat nicht zu bleibenden Schäden geführt!"
         ]
     }
 
@@ -304,7 +326,7 @@ class League(commands.Cog):
             embed.set_thumbnail(url=f"{self.champion_icon_url}{icon_name}")
             await utils.silencer(channel.send(embed=embed))
 
-    @tasks.loop(minutes=60)
+    @tasks.loop(minutes=15)
     async def engine(self):
         logger.debug("League: loop start")
 
@@ -315,7 +337,7 @@ class League(commands.Cog):
 
         try:
             current_summoner = await self.refresh_summoner()
-        except (utils.NoRiotResponse, aiohttp.ClientConnectorError):
+        except (utils.NoRiotResponse, aiohttp.ClientConnectorError, asyncio.TimeoutError):
             logger.debug("League Loop: no API response")
             return
 
@@ -354,6 +376,10 @@ class League(commands.Cog):
 
                 if old_summoner.last_match_id != summoner.last_match_id:
                     try:
+                        if summoner.last_match_id is None:
+                            logger.debug(f"League: {member.id} has no last match")
+                            continue
+                        
                         match_data = await self.fetch_match(summoner.last_match_id)
 
                         if match_data is None:
@@ -367,7 +393,6 @@ class League(commands.Cog):
                     match = Match(match_data, summoner.id)
 
                     if match.inapplicable:
-                        logger.debug(f"Irrelevant match: {summoner.last_match_id}")
                         continue
 
                     if match.carry():
@@ -389,7 +414,10 @@ class League(commands.Cog):
 
     @engine.error
     async def on_engine_error(self, error):
-        logger.error(f"League: {error}")
+        formatted = "".join(
+            traceback.format_exception(type(error), error, error.__traceback__)
+        )
+        logger.error(f"League: {formatted}")
         raise error
 
     def get_summoner_by_member(self, ctx, argument):
