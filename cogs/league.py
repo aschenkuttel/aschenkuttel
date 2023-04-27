@@ -56,7 +56,7 @@ class Summoner:
         if self.tier is None:
             return "Unranked"
         elif self.tier in self.all_tiers[-3:]:
-            return self.tier
+            return f"{self.tier} {self.lp} LP"
         else:
             return f"{self.tier} {self.rank}"
 
@@ -292,6 +292,8 @@ class League(commands.Cog):
                 summoners[user_id] = new_summoner_obj
                 batch.append(arguments)
 
+            await asyncio.sleep(.1)
+
         await self.bot.db.executemany(self.query, batch)
         await self.bot.db.commit()
         return summoners
@@ -409,6 +411,8 @@ class League(commands.Cog):
                         msg = base.format(name)
                         await self.send_embed(channel, msg, champion_id=match.champion_id)
 
+                await asyncio.sleep(.1)
+
         self.summoner = current_summoner
         logger.debug("League: loop end")
 
@@ -499,7 +503,7 @@ class League(commands.Cog):
         return await self.fetch(url)
 
     async def fetch_summoner(self, argument, id_=False):
-        if not isinstance(argument, dict):
+        if id_ is True:
             data = await self.fetch_summoner_basic(argument, id_=id_)
         else:
             data = argument
@@ -554,7 +558,7 @@ class League(commands.Cog):
 
     @commands.command(name="summoner")
     async def summoner_(self, ctx, *, argument=None):
-        """gives some basic information about your, someones
+        """gives some basic information about your, someone's
         connected summoner or some external summoner"""
         summoner = self.get_summoner_by_member(ctx, argument)
 
