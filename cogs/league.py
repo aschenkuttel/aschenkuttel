@@ -147,14 +147,14 @@ class Match:
         if not self.win:
             return
 
-        if self.kills > 7 and self.kd >= 2.5:
+        if (self.kills >= 10 and self.kd >= 2.5) or (self.kills >= 5 and self.kd >= 4):
             return True
 
         elif self.best_performance():
             return True
 
         elif self.support or self.lane == "JUNGLE":
-            return self.kda > 3
+            return self.kda > 3.5
 
     def int(self):
         return self.kda < 0.75 and self.deaths > 7

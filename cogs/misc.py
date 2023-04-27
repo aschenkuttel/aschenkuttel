@@ -51,7 +51,7 @@ class Utils(commands.Cog):
     async def icon_(self, ctx):
         """displays the guilds server icon"""
         embed = discord.Embed(color=discord.Color.gold())
-        embed.set_image(url=ctx.guild.icon_url)
+        embed.set_image(url=ctx.guild.icon.url)
         await ctx.send(embed=embed)
 
     @commands.command(name="profile")
