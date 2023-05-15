@@ -44,7 +44,7 @@ class Summoner:
 
     @property
     def icon_url(self):
-        return f"http://ddragon.leagueoflegends.com/cdn/11.3.1/img/profileicon/{self.icon_id}.png"
+        return f"http://ddragon.leagueoflegends.com/cdn/13.9.1/img/profileicon/{self.icon_id}.png"
 
     @property
     def op_gg(self):
@@ -168,7 +168,7 @@ class Match:
 class League(commands.Cog):
     euw_base_url = "https://euw1.api.riotgames.com/lol"
     europe_base_url = "https://europe.api.riotgames.com/lol"
-    champion_icon_url = "http://ddragon.leagueoflegends.com/cdn/11.14.1/img/champion/"
+    champion_icon_url = "http://ddragon.leagueoflegends.com/cdn/13.9.1/img/champion/"
     # query = 'INSERT INTO summoner (user_id, id, account_id, puuid, ' \
     #         'name, icon_id, level, wins, losses, tier, rank, lp, last_match_id) ' \
     #         'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) ' \
@@ -309,7 +309,7 @@ class League(commands.Cog):
             id_ = int(pkg['key'])
             self.champion[id_] = pkg
 
-    async def send_embed(self, channel, message, summoner=None, champion_id=None):
+    async def send_embed(self, channel, message, summoner=None, champion_id=None, colour=None):
         if summoner is not None and summoner.tier is not None:
             path = f"{self.bot.path}/data/league/{summoner.tier}.png"
 
@@ -324,7 +324,7 @@ class League(commands.Cog):
 
         elif champion_id is not None:
             icon_name = self.champion[champion_id]['image']['full']
-            embed = discord.Embed(description=f"\u200b\n{message}", colour=self.colour)
+            embed = discord.Embed(description=f"\u200b\n{message}", colour=colour or self.colour)
             embed.set_thumbnail(url=f"{self.champion_icon_url}{icon_name}")
             await utils.silencer(channel.send(embed=embed))
 
@@ -400,12 +400,14 @@ class League(commands.Cog):
                     if match.carry():
                         base = random.choice(self.messages['carry'])
                         msg = base.format(name, match.str_kda)
-                        await self.send_embed(channel, msg, champion_id=match.champion_id)
+                        colour = discord.Colour.green()
+                        await self.send_embed(channel, msg, champion_id=match.champion_id, colour=colour)
 
                     elif match.int():
                         base = random.choice(self.messages['int'])
                         msg = base.format(name, match.str_kda)
-                        await self.send_embed(channel, msg, champion_id=match.champion_id)
+                        colour = discord.Colour.red()
+                        await self.send_embed(channel, msg, champion_id=match.champion_id, colour=colour)
 
                     elif base := match.special_scenario():
                         msg = base.format(name)
@@ -423,6 +425,19 @@ class League(commands.Cog):
         )
         logger.error(f"League: {formatted}")
         raise error
+
+    async def get_summoner(self, ctx, argument):
+        # fetches summoner by member or author
+        summoner = self.get_summoner_by_member(ctx, argument)
+
+        # fetches by summoner name else
+        if summoner is None:
+            base_data = await self.fetch_summoner_basic(argument)
+            summoner_data = await self.fetch_summoner(base_data)
+            arguments = self.parse_arguments(None, summoner_data)
+            summoner = Summoner(arguments)
+
+        return summoner
 
     def get_summoner_by_member(self, ctx, argument):
         if argument is None:
@@ -502,6 +517,10 @@ class League(commands.Cog):
         url = f"{self.europe_base_url}/match/v5/matches/{match_id}"
         return await self.fetch(url)
 
+    async def fetch_masteries(self, id_):
+        url = f"{self.euw_base_url}/champion-mastery/v4/champion-masteries/by-summoner/{id_}"
+        return await self.fetch(url)
+
     async def fetch_summoner(self, argument, id_=False):
         if id_ is True:
             data = await self.fetch_summoner_basic(argument, id_=id_)
@@ -560,12 +579,7 @@ class League(commands.Cog):
     async def summoner_(self, ctx, *, argument=None):
         """gives some basic information about your, someone's
         connected summoner or some external summoner"""
-        summoner = self.get_summoner_by_member(ctx, argument)
-
-        if summoner is None:
-            data = await self.fetch_summoner(argument)
-            arguments = self.parse_arguments(None, data)
-            summoner = Summoner(arguments)
+        summoner = await self.get_summoner(ctx, argument)
 
         title = f"{summoner.name} (LV {summoner.level})"
         embed = discord.Embed(title=title, url=summoner.op_gg, colour=self.colour)
@@ -577,6 +591,30 @@ class League(commands.Cog):
         ]
 
         embed.description = "\n".join(parts)
+        await ctx.send(embed=embed)
+
+    @commands.command(name="mastery")
+    async def mastery_(self, ctx, *, argument=None):
+        """gives the top 5 champion masteries of your, someone's
+        connected summoner or some external summoner"""
+        summoner = await self.get_summoner(ctx, argument)
+        masteries = await self.fetch_masteries(summoner.id)
+        title = f"{summoner.name} (LV {summoner.level})"
+        embed = discord.Embed(title=title, colour=self.colour)
+        embed.set_thumbnail(url=summoner.icon_url)
+
+        if masteries is None:
+            embed.description = "No mastery data found"
+        else:
+            parts = []
+            for mastery in masteries[:5]:
+                champion = self.champion[mastery['championId']]
+                champion_name = champion['name'] if champion else "Unknown"
+                champion_points = f"{mastery['championPoints']:,}".replace(",", ".")
+                parts.append(f"`{champion_points}` **{champion_name}**")
+
+            embed.description = "\n".join(parts)
+
         await ctx.send(embed=embed)
 
     @commands.command(name="check")
