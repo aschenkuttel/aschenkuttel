@@ -587,7 +587,7 @@ class League(commands.Cog):
         parts = [
             f"**Games played:** {summoner.games}",
             f"**Win/Lose:** {summoner.wins}/{summoner.losses}",
-            f"**Rank:** {summoner.str_rank} ({summoner.lp} LP)"
+            f"**Rank:** {summoner.str_rank}"
         ]
 
         embed.description = "\n".join(parts)
