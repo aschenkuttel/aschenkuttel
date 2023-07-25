@@ -47,6 +47,8 @@ class Sounds(commands.Cog):
                 continue
             elif channel.id in ignored:
                 continue
+            elif not channel.permissions_for(guild.me).connect:
+                continue
             else:
                 visible_channel.append(channel)
 
