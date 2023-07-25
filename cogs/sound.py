@@ -10,14 +10,33 @@ import io
 logger = logging.getLogger('self')
 
 
-#  TODO: join after start up
-
 class Sounds(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.lock = []
         self.cache = {}
         self.config = self.bot.config
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        print("Joining voice channels...")
+
+        for guild in self.bot.guilds:
+            vc = guild.voice_client
+
+            active = self.config.get('sound', guild.id)
+            if not active:
+                continue
+
+            most_people = self.get_fullest_channel(guild)
+
+            if most_people is not None:
+                if vc:
+                    await vc.move_to(most_people)
+                else:
+                    await most_people.connect()
+
+                logger.debug(f'connected to {most_people}')
 
     def get_fullest_channel(self, guild):
         ignored = self.config.get('hidden', guild.id, [])
@@ -62,44 +81,26 @@ class Sounds(commands.Cog):
 
         most_people = self.get_fullest_channel(guild)
 
-        # member joins in channel
-        if after.channel is not None:
-            if after.channel == most_people and guild.me not in most_people.members:
-                logger.debug(f'connecting to channel {most_people}')
-                await asyncio.sleep(1)
+        if vc and most_people is None:
+            logger.debug(f'disconnected from {vc.channel}')
+            await vc.disconnect(force=True)
+            return
 
-                if vc is None:
-                    await most_people.connect()
+        if most_people is not None and guild.me not in most_people.members:
+            await asyncio.sleep(1)
 
-                else:
-                    member_ids = [m.id for m in after.channel.members]
-                    self.cache[guild] = member_ids
-                    await vc.move_to(most_people)
-
-                logger.debug(f'connected to {most_people}')
-                return
-
-        # if after channel is None (leave) we look if we're in the fullest channel
-        elif most_people and guild.me not in most_people.members:
             if vc is None:
                 await most_people.connect()
+
             else:
+                member_ids = [m.id for m in after.channel.members]
+                self.cache[guild] = member_ids
                 await vc.move_to(most_people)
 
             logger.debug(f'connected to {most_people}')
             return
 
-        # if after channel is None (leave) looks if its connected and the only
-        # one in the channel and leaves if, since we handle channel moves above
-        elif vc and len(vc.channel.members) == 1:
-            logger.debug(f'disconnected from {vc.channel}')
-            await vc.disconnect(force=True)
-            return
-
-        if vc is None:
-            return
-
-        if vc.channel in (before.channel, after.channel):
+        if vc and vc.channel in (before.channel, after.channel):
             # bot join connect which seems to take a while internally
             if guild.me == member:
                 while not vc.is_connected():
@@ -110,6 +111,7 @@ class Sounds(commands.Cog):
                     ids = [m.id for m in vc.channel.members]
 
                     if sorted(member_ids) == sorted(ids):
+                        print("same members CACHE HIT")
                         return
 
             if not vc.is_playing() and vc.is_connected():
