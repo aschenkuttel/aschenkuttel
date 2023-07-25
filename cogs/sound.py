@@ -64,12 +64,6 @@ class Sounds(commands.Cog):
 
         # member joins in channel
         if after.channel is not None:
-
-            if most_people is None and vc and len(vc.channel.members) == 1:
-                logger.debug(f'disconnected from {vc.channel}')
-                await vc.disconnect()
-                return
-
             if after.channel == most_people and guild.me not in most_people.members:
                 logger.debug(f'connecting to channel {most_people}')
                 await asyncio.sleep(1)
@@ -99,7 +93,7 @@ class Sounds(commands.Cog):
         # one in the channel and leaves if, since we handle channel moves above
         elif vc and len(vc.channel.members) == 1:
             logger.debug(f'disconnected from {vc.channel}')
-            await vc.disconnect()
+            await vc.disconnect(force=True)
             return
 
         if vc is None:

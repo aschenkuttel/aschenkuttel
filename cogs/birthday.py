@@ -2,6 +2,7 @@ from dateutil.relativedelta import relativedelta
 from discord.ext import commands, tasks
 from datetime import datetime
 from itertools import cycle
+from utils import Member
 import dateparser
 import discord
 import random
@@ -105,9 +106,9 @@ class Birthday(commands.Cog):
 
                     await bday_channel.send(embed=embed)
 
-    async def fetch_birthday(self, ctx, suppress=False):
+    async def fetch_birthday(self, member, suppress=False):
         query = 'SELECT * FROM birthday WHERE guild_id = $1 AND user_id = $2'
-        response = await self.bot.fetchone(query, ctx.guild.id, ctx.author.id)
+        response = await self.bot.fetchone(query, member.guild.id, member.id)
 
         if response is not None:
             return Birthdate(response)
@@ -152,25 +153,18 @@ class Birthday(commands.Cog):
         embed.description = "\n".join(upcoming_dates)
         await ctx.send(embed=embed)
 
-    @commands.command(name="birthday")
-    async def birthday_(self, ctx, date_str=None):
-        """Either sets/changes your birthday or
-        displays your birthday if no argument is given"""
-        date = await self.fetch_birthday(ctx, suppress=True)
+    @commands.command(name="born")
+    async def born_(self, ctx, date_str):
+        """sets/changes your birthday"""
 
-        if date_str is None:
-            if date is None:
-                raise utils.NoBirthday()
-
-            msg = f"`{date}` is your birthday?"
-            await ctx.send(msg)
-            return
+        date = await self.fetch_birthday(ctx.author, suppress=True)
 
         kwargs = {'locales': ["de-BE"], 'settings': {'PREFER_DATES_FROM': 'past'}}
         birthday_date = dateparser.parse(date_str, **kwargs)
 
         if birthday_date is None:
-            raise utils.WrongDateFormat()
+            await ctx.send("invalid date format, birthdays are in `DD.MM.YYYY`")
+            return
 
         if (datetime.now().year - birthday_date.year) < 14:
             await ctx.send("pls message <@211836670666997762>")
@@ -185,6 +179,18 @@ class Birthday(commands.Cog):
 
             date_rep = birthday_date.strftime(Birthdate.preset)
             await ctx.send(f"your birthday `{date_rep}` got registered")
+
+    @commands.command(name="birthday")
+    async def birthday_(self, ctx, member: Member = None):
+        """shows the birthday of a member"""
+        member = member or ctx.author
+        date = await self.fetch_birthday(member, suppress=True)
+        no_ping = discord.AllowedMentions(users=False)
+
+        if date is None:
+            await ctx.send(f"{member.mention} has no birthday registered", allowed_mentions=no_ping)
+        else:
+            await ctx.send(f"{member.mention} has birthday on `{date}`", allowed_mentions=no_ping)
 
     @commands.command(name="insecure")
     async def insecure_(self, ctx):
