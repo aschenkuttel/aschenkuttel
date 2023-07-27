@@ -1,12 +1,13 @@
 from discord.ext import commands
+from discord import app_commands
 from datetime import datetime
+from discord.ui import TextInput, Modal
 import dateparser
 import asyncio
 import discord
 import logging
 
-
-logger = logging.getLogger('self')
+logger = logging.getLogger('dsbot')
 
 
 class Timer:
@@ -31,7 +32,7 @@ class Timer:
         embed.description = self.reason
 
         channel = self.bot.get_channel(self.channel_id)
-        author = self.bot.get_user(self.author_id)
+        author = await self.bot.fetch_user(self.author_id)
 
         if author is None:
             return
@@ -49,13 +50,28 @@ class Timer:
             return
 
 
+class ReminderModal(Modal):
+    def __init__(self, callback):
+        super().__init__(title="Reminder")
+        self.callback = callback
+
+    time_input = TextInput(label="Remind me in/at")
+    reason_input = TextInput(label="Reason", style=discord.TextStyle.long, required=False)
+
+    async def on_submit(self, interaction):
+        await self.callback(interaction, self.time_input.value, self.reason_input.value)
+
+    async def on_error(self, interaction, error):
+        pass
+
+
 class Reminder(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.type = 2
         self.char_limit = 200
+        self.settings = {'languages': ['de', 'en'], 'settings': {'PREFER_DATES_FROM': "future"}}
         self.preset = "%d.%m.%Y | %H:%M:%S Uhr"
-        self.set = {'PREFER_DATES_FROM': 'future'}
         self._task = self.bot.loop.create_task(self.remind_loop())
         self._lock = asyncio.Event(loop=bot.loop)
         self.current_reminder = None
@@ -103,29 +119,21 @@ class Reminder(commands.Cog):
             else:
                 await self._lock.wait()
 
-    @commands.command(name="now")
-    async def now_(self, ctx):
-        now = datetime.now()
-        represent = now.strftime(self.preset)
-        await ctx.send(f"`{represent}`")
-
-    @commands.group(name="remind", invoke_without_command=True)
-    async def remind(self, ctx, *, argument: commands.clean_content):
-        """remind yourself after given time in the channel the command
-        was invoked in or privately with a reason or without"""
-        args = argument.split("\n")
-        time = args.pop(0)
-        if args:
-            reason = "\n".join(args).strip()[:self.char_limit]
+    async def save_reminder(self, interaction, raw_time, raw_reason):
+        if raw_reason:
+            reason = raw_reason.strip()[:self.char_limit]
         else:
-            reason = "No Reason"
+            reason = "No reason"
 
-        kwargs = {'locales': ["de-BE"], 'settings': self.set}
-        expected_date = dateparser.parse(time, **kwargs)
+        try:
+            expected_date = dateparser.parse(raw_time, **self.settings)
+        except Exception as error:
+            logger.debug(error)
+            expected_date = None
 
         if expected_date is None:
             msg = "No valid time format"
-            await ctx.send(msg)
+            await interaction.response.send_message(msg, ephemeral=True)
             return
 
         current_date = datetime.now()
@@ -138,16 +146,16 @@ class Reminder(commands.Cog):
 
         if difference < 0:
             msg = "The timestamp has already passed"
-            await ctx.send(msg)
+            await interaction.response.send_message(msg, ephemeral=True)
             return
 
         current_stamp = current_date.timestamp()
         expected_stamp = expected_date.timestamp()
-        arguments = [ctx.author.id, ctx.channel.id, current_stamp, expected_stamp, reason]
+        arguments = [interaction.user.id, interaction.channel.id, current_stamp, expected_stamp, reason]
         reminder = Timer(self.bot, arguments)
 
         if difference < 60:
-            await ctx.send(embed=embed)
+            await interaction.response.send_message(embed=embed)
             await asyncio.sleep(difference)
             await reminder.send()
 
@@ -169,17 +177,24 @@ class Reminder(commands.Cog):
 
             logger.debug(f"reminder {reminder.id}: registered")
             embed.description = f"{embed.description[:-3]} (ID {reminder.id}):**"
-            await ctx.send(embed=embed)
+            await interaction.response.send_message(embed=embed)
 
-    @remind.command(name="list")
-    async def list_(self, ctx):
-        """shows all your active reminders"""
+    @app_commands.command(name="remind",
+                          description="remind yourself after given time in the channel the command was invoked in")
+    async def remind(self, interaction):
+        modal = ReminderModal(self.save_reminder)
+        await interaction.response.send_modal(modal)
+
+    reminder = app_commands.Group(name="reminder", description="Aschenkuttel Reminder")
+
+    @reminder.command(name="list", description="shows all your active reminders")
+    async def list(self, interaction):
         query = 'SELECT * FROM reminder WHERE author_id = $1 ORDER BY expiration'
-        data = await self.bot.fetch(query, ctx.author.id)
+        data = await self.bot.fetch(query, interaction.user.id)
 
         if not data:
             msg = "You don't have any active reminders"
-            await ctx.send(msg)
+            await interaction.response.send_message(msg, ephemeral=True)
 
         else:
             reminders = []
@@ -190,34 +205,35 @@ class Reminder(commands.Cog):
 
             title = f"Your active reminders ({len(data)} in total):"
             embed = discord.Embed(description="\n".join(reminders), title=title)
-            await ctx.send(embed=embed)
+            await interaction.response.send_message(embed=embed)
 
-    @remind.command(name="remove")
-    async def remove_(self, ctx, reminder_id: int):
-        """removes reminder with given id"""
+    @reminder.command(name="remove", description="removes reminder with given id")
+    @app_commands.describe(reminder_id="ID of the reminder you want to delete")
+    @app_commands.rename(reminder_id="id")
+    async def remove(self, interaction, reminder_id: int):
         query = 'DELETE FROM reminder WHERE author_id = $1 AND id = $2'
-        response = await self.bot.fetchone(query, ctx.author.id, reminder_id)
+        response = await self.bot.fetchone(query, interaction.user.id, reminder_id)
         await self.bot.db.commit()
 
         if response == "DELETE 0":
             msg = "You don't have an active reminder with that ID"
-            return await ctx.send(msg)
+            await interaction.response.send_message(msg, ephemeral=True)
+            return
 
         if self.current_reminder and self.current_reminder.id == reminder_id:
             self.restart()
 
-        await ctx.send("Your reminder has been deleted")
+        await interaction.response.send_message("Your reminder has been deleted")
 
-    @remind.command(name="clear")
-    async def clear_(self, ctx):
-        """clears all active reminders"""
+    @reminder.command(name="clear", description="deletes all active reminders")
+    async def clear(self, interaction):
         query = 'DELETE FROM reminder WHERE author_id = $1 RETURNING id'
-        deleted_rows = await self.bot.fetch(query, ctx.author.id)
+        deleted_rows = await self.bot.fetch(query, interaction.user.id)
         await self.bot.db.commit()
 
         if not deleted_rows:
             msg = "You don't have any active reminders"
-            await ctx.send(msg)
+            await interaction.response.send_message(msg, ephemeral=True)
             return
 
         if self.current_reminder:
@@ -226,7 +242,7 @@ class Reminder(commands.Cog):
                 self.restart()
 
         msg = f"All your active reminders have been deleted ({len(deleted_rows)})"
-        await ctx.send(msg)
+        await interaction.response.send_message(msg)
 
 
 async def setup(bot):
