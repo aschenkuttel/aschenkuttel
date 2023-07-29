@@ -1,5 +1,6 @@
 from dateutil.relativedelta import relativedelta
 from discord.ext import commands, tasks
+from discord import app_commands
 from datetime import datetime
 from itertools import cycle
 from utils import Member
@@ -57,7 +58,10 @@ class Birthday(commands.Cog):
             "https://media1.tenor.com/images/e790abf8a07df6fe5f692754d537e7ce/tenor.gif",
             "https://media1.tenor.com/images/4edc2a068950de1b0b5cbbba7389ac79/tenor.gif",
             "https://media1.tenor.com/images/d30af3d60233e591acb0d552e96505ea/tenor.gif",
-            "https://media1.tenor.com/images/ade6ea654ec8e7c6de665d9c58836455/tenor.gif"
+            "https://media1.tenor.com/images/ade6ea654ec8e7c6de665d9c58836455/tenor.gif",
+            "https://media.tenor.com/RvfqrIGh_skAAAAC/umakanta.gif",
+            "https://media.tenor.com/VMC8fNKdQrcAAAAd/happy-birthday-bon-anniversaire.gif",
+            "https://media.tenor.com/ebZ0rVyVysYAAAAC/cake-birthday.gif"
         )
         self.birthday_loop.start()
 
@@ -120,10 +124,55 @@ class Birthday(commands.Cog):
         response = await self.bot.fetch(query, guild_id)
         return [Birthdate(row) for row in response]
 
-    @commands.command(name="birthdays")
-    async def birthdays_(self, ctx):
-        """Displays the next 5 birthdays of the server"""
-        dates = await self.fetch_guild_birthdays(ctx.guild.id)
+    @app_commands.command(name="born", description="sets/changes your birthday")
+    @app_commands.describe(date_str="your birthdate in `DD.MM.YYYY`")
+    async def born_(self, interaction, date_str: str):
+        """sets/changes your birthday"""
+
+        date = await self.fetch_birthday(interaction.user, suppress=True)
+
+        kwargs = {'locales': ["de-BE"], 'settings': {'PREFER_DATES_FROM': 'past'}}
+        birthday_date = dateparser.parse(date_str, **kwargs)
+
+        if birthday_date is None:
+            await interaction.response.send_message("invalid date format, birthdays are in `DD.MM.YYYY`")
+            return
+
+        if (datetime.now().year - birthday_date.year) < 14:
+            await interaction.response.send_message("pls message <@211836670666997762>")
+            return
+
+        if date == birthday_date:
+            await interaction.response.send_message("you already registered that date")
+        else:
+            query = 'INSERT OR REPLACE INTO birthday ' \
+                    '(guild_id, user_id, date) VALUES ($1, $2, $3)'
+            await self.bot.execute(query, interaction.guild.id, interaction.user.id, birthday_date)
+
+            date_rep = birthday_date.strftime(Birthdate.preset)
+            await interaction.response.send_message(f"your birthday `{date_rep}` got registered")
+
+    @app_commands.command(name="birthday", description="shows the birthday of a member")
+    async def birthday_(self, interaction, member: discord.Member = None):
+        member = member or interaction.user
+        date = await self.fetch_birthday(member, suppress=True)
+        no_ping = discord.AllowedMentions(users=False)
+
+        if date is None:
+            msf = f"{member.mention} has no birthday registered"
+            await interaction.response.send_message(msf, allowed_mentions=no_ping)
+        else:
+            msg = f"{member.mention} has birthday on `{date}`"
+            await interaction.response.send_message(msg, allowed_mentions=no_ping)
+
+    @app_commands.command(name="birthdays", description="displays the next 5 birthdays of the server")
+    async def birthdays_(self, interaction):
+        dates = await self.fetch_guild_birthdays(interaction.guild.id)
+
+        if not dates:
+            await interaction.response.send_message("no birthdays registered in this server")
+            return
+
         today = datetime.now()
 
         for date in dates:
@@ -136,7 +185,7 @@ class Birthday(commands.Cog):
             if len(upcoming_dates) == 5:
                 break
 
-            member = ctx.guild.get_member(date.user_id)
+            member = interaction.guild.get_member(date.user_id)
             if member is None:
                 continue
 
@@ -149,57 +198,17 @@ class Birthday(commands.Cog):
             date.append_year()
 
         embed = discord.Embed(colour=discord.Colour.dark_gold())
-        embed.title = f"Upcoming Birthdays of {ctx.guild.name}"
+        embed.title = f"Upcoming Birthdays of {interaction.guild.name}"
         embed.description = "\n".join(upcoming_dates)
-        await ctx.send(embed=embed)
+        await interaction.response.send_message(embed=embed)
 
-    @commands.command(name="born")
-    async def born_(self, ctx, date_str):
-        """sets/changes your birthday"""
-
-        date = await self.fetch_birthday(ctx.author, suppress=True)
-
-        kwargs = {'locales': ["de-BE"], 'settings': {'PREFER_DATES_FROM': 'past'}}
-        birthday_date = dateparser.parse(date_str, **kwargs)
-
-        if birthday_date is None:
-            await ctx.send("invalid date format, birthdays are in `DD.MM.YYYY`")
-            return
-
-        if (datetime.now().year - birthday_date.year) < 14:
-            await ctx.send("pls message <@211836670666997762>")
-            return
-
-        if date == birthday_date:
-            await ctx.send("you already registered that date")
-        else:
-            query = 'INSERT OR REPLACE INTO birthday ' \
-                    '(guild_id, user_id, date) VALUES ($1, $2, $3)'
-            await self.bot.execute(query, ctx.guild.id, ctx.author.id, birthday_date)
-
-            date_rep = birthday_date.strftime(Birthdate.preset)
-            await ctx.send(f"your birthday `{date_rep}` got registered")
-
-    @commands.command(name="birthday")
-    async def birthday_(self, ctx, member: Member = None):
-        """shows the birthday of a member"""
-        member = member or ctx.author
-        date = await self.fetch_birthday(member, suppress=True)
-        no_ping = discord.AllowedMentions(users=False)
-
-        if date is None:
-            await ctx.send(f"{member.mention} has no birthday registered", allowed_mentions=no_ping)
-        else:
-            await ctx.send(f"{member.mention} has birthday on `{date}`", allowed_mentions=no_ping)
-
-    @commands.command(name="insecure")
-    async def insecure_(self, ctx):
-        """removes your current birthday if you have one"""
-        await self.fetch_birthday(ctx)
+    @app_commands.command(name="insecure", description="removes your current birthday if you have one")
+    async def insecure_(self, interaction):
+        await self.fetch_birthday(interaction.user)
 
         query = 'DELETE FROM birthday WHERE guild_id = $1 AND user_id = $2'
-        await self.bot.execute(query, ctx.guild.id, ctx.author.id)
-        await ctx.send("birthday deleted you insecure thing")
+        await self.bot.execute(query, interaction.guild.id, interaction.user.id)
+        await interaction.response.send_message("birthday deleted you insecure thing")
 
 
 async def setup(bot):

@@ -1,4 +1,5 @@
 from discord.ext import commands
+from discord import app_commands
 import traceback
 import logging
 import utils
@@ -62,5 +63,27 @@ class Listen(commands.Cog):
             traceback.print_exception(type(error), error, error.__traceback__, file=sys.stderr)
 
 
-async def setup(bot):
-    await bot.add_cog(Listen(bot))
+# async def setup(bot):
+#     await bot.add_cog(Listen(bot))
+
+
+async def on_command_error(interaction, error):
+    error = getattr(error, 'original', error)
+    msg = None
+
+    if isinstance(error, app_commands.MissingPermissions):
+        msg = "sorry but you don't have the permissions for that"
+
+    elif isinstance(error, utils.SummonerNotFound):
+        msg = "There's no summoner with the given name"
+
+    if msg:
+        embed = utils.embed(msg, error=True)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        logger.debug(f"expected error with {interaction.data}: {error}")
+
+    else:
+        embed = utils.embed("something went wrong", error=True)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        logger.debug(f"error with {interaction.data}: {error}")
+        traceback.print_exception(type(error), error, error.__traceback__, file=sys.stderr)

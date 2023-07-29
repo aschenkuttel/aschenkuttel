@@ -1,4 +1,5 @@
 from discord.ext import commands
+from discord import app_commands
 import discord
 import utils
 
@@ -6,151 +7,138 @@ import utils
 class Config(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.keywords = [
-            'lobby',
-            'bdayboard',
-            'starboard',
-            'starcount',
-            'league'
-        ]
-        self.features = [
-            'sound'
-        ]
         self.config = self.bot.config
 
-    async def cog_check(self, ctx):
-        if ctx.author.guild_permissions.administrator:
-            return True
-        else:
-            raise commands.MissingPermissions(['administrator'])
+    set = app_commands.Group(name="set", description="sets one of your guilds config")
 
-    @commands.group(name="set", invoke_without_command=True)
-    async def set(self, ctx):
-        msg = f"`{ctx.prefix}set <{', '.join(self.keywords)}>`"
-        await ctx.send(embed=utils.embed(msg))
-
-    @set.command(name="lobby")
-    async def lobby_(self, ctx, channel: discord.VoiceChannel):
-        """sets your guilds lobby channel from which
-        the summon command move its members"""
-        current_id = self.config.get('lobby', ctx.guild.id)
-        fail = True
+    @set.command(name="lobby",
+                 description="sets your guilds lobby channel from which the summon command move its members")
+    @app_commands.describe(channel="the channel you want to set as lobby")
+    @app_commands.checks.has_permissions(manage_channels=True)
+    async def lobby_(self, interaction, channel: discord.VoiceChannel):
+        current_id = self.config.get('lobby', interaction.guild.id)
 
         if current_id == channel.id:
             msg = "This channel is already the lobby"
+            await interaction.response.send_message(embed=utils.embed(msg, error=True), ephemeral=True)
 
         else:
-            self.config.store('lobby', channel.id, ctx.guild.id)
+            self.config.store('lobby', channel.id, interaction.guild.id)
             msg = f"{channel.mention} is now the lobby"
-            fail = False
+            await interaction.response.send_message(embed=utils.embed(msg))
 
-        await ctx.send(embed=utils.embed(msg, error=fail))
+    @set.command(name="bdayboard",
+                 description="sets your guilds lobby channel from which the summon command move its members")
+    @app_commands.describe(channel="the channel you want to set as lobby")
+    @app_commands.checks.has_permissions(manage_channels=True)
+    async def bdayboard_(self, interaction, channel: discord.TextChannel):
+        channel_id = self.config.get('bdayboard', interaction.guild.id)
 
-    @set.command(name="bdayboard")
-    async def bdayboard_(self, ctx):
-        """sets the bdayboard of your guild in which
-        birthdays of server members will be posted"""
-        channel_id = self.config.get('bdayboard', ctx.guild.id)
-
-        if channel_id == ctx.channel.id:
+        if channel_id == channel.id:
             msg = "This channel is already the bdayboard"
-            await ctx.send(embed=utils.embed(msg, error=True))
+            await interaction.response.send_message(embed=utils.embed(msg, error=True), ephemeral=True)
 
         else:
-            self.config.store('bdayboard', ctx.channel.id, ctx.guild.id)
-            msg = f"{ctx.channel.mention} is now the bdayboard"
-            await ctx.send(embed=utils.embed(msg))
+            self.config.store('bdayboard', channel.id, interaction.guild.id)
+            msg = f"{channel.mention} is now the bdayboard"
+            await interaction.response.send_message(embed=utils.embed(msg))
 
-    @set.command(name="starboard")
-    async def starboard_(self, ctx):
-        """sets the starboard of your guild in
-        which starred messages will be posted"""
-        channel_id = self.config.get('starboard', ctx.guild.id)
+    @set.command(name="starboard",
+                 description="sets the starboard channel of your guild in which starred messages will be posted")
+    @app_commands.describe(channel="the channel you want to set as the starboard")
+    @app_commands.checks.has_permissions(manage_channels=True)
+    async def starboard_(self, interaction, channel: discord.TextChannel):
+        channel_id = self.config.get('starboard', interaction.guild.id)
 
-        if channel_id == ctx.channel.id:
+        if channel_id == channel.id:
             msg = "This channel is already the starboard"
-            await ctx.send(embed=utils.embed(msg, error=True))
+            await interaction.response.send_message(embed=utils.embed(msg, error=True), ephemeral=True)
 
         else:
-            self.config.store('starboard', ctx.channel.id, ctx.guild.id)
-            msg = f"{ctx.channel.mention} is now the starboard"
-            await ctx.send(embed=utils.embed(msg))
+            self.config.store('starboard', channel.id, interaction.guild.id)
+            msg = f"{channel.mention} is now the starboard"
+            await interaction.response.send_message(embed=utils.embed(msg))
 
-    @set.command(name="starcount")
-    async def starcount_(self, ctx, amount: int):
-        """sets the guilds limit on which messages
-        will be embedded in the guilds starboard"""
-        self.config.store('starcount', amount, ctx.guild.id)
+    @set.command(name="starcount",
+                 description="sets the guilds limit on which messages will be embedded in the guilds starboard")
+    @app_commands.describe(amount="the amount of stars needed to pin a message")
+    @app_commands.checks.has_permissions(manage_channels=True)
+    async def starcount_(self, interaction, amount: int):
+        self.config.store('starcount', amount, interaction.guild.id)
         msg = f"The messages now need {amount} stars to be pinned"
-        await ctx.send(embed=utils.embed(msg))
+        await interaction.response.send_message(embed=utils.embed(msg))
 
-    @set.command(name="league")
-    async def league_(self, ctx):
-        """sets the league channel of your guild in
-        which summoners get roasted and boasted"""
-        channel_id = self.config.get('league', ctx.guild.id)
+    @set.command(name="league",
+                 description="sets the league channel of your guild in which summoners get roasted and boasted")
+    @app_commands.describe(channel="the channel you want to set as the league channel")
+    @app_commands.checks.has_permissions(manage_channels=True)
+    async def league_(self, interaction, channel: discord.TextChannel):
+        channel_id = self.config.get('league', interaction.guild.id)
 
-        if channel_id == ctx.channel.id:
+        if channel_id == channel.id:
             msg = "This channel is already the league channel"
-            await ctx.send(embed=utils.embed(msg, error=True))
+            await interaction.response.send_message(embed=utils.embed(msg, error=True), ephemeral=True)
 
         else:
-            self.config.store('league', ctx.channel.id, ctx.guild.id)
-            msg = f"{ctx.channel.mention} is now the league channel"
-            await ctx.send(embed=utils.embed(msg))
+            self.config.store('league', channel.id, interaction.guild.id)
+            msg = f"{channel.mention} is now the league channel"
+            await interaction.response.send_message(embed=utils.embed(msg))
 
-    @commands.group(invoke_without_command=True, name="remove")
-    async def remove_(self, ctx, target):
-        """removes on of your guilds config"""
-        if target not in self.keywords:
-            msg = f"`{ctx.prefix}remove <{', '.join(self.keywords)}>`"
-            await ctx.send(embed=utils.embed(msg))
+    @app_commands.command(name="remove", description="removes one of your guilds config")
+    @app_commands.describe(target=f"one of the following options")
+    @app_commands.choices(target=utils.config_options)
+    @app_commands.checks.has_permissions(manage_channels=True)
+    async def remove(self, interaction, target: app_commands.Choice[str]):
+        response = self.config.remove(target.value, interaction.guild.id)
 
-        else:
-            response = self.config.remove(target, ctx.guild.id)
-
-            if response is None:
-                msg = f"There's no current {target}"
-
-            else:
-                msg = f"The {target} got removed"
-
-            await ctx.send(embed=utils.embed(msg, error=not response))
-
-    @commands.group(name="enable", aliases=["disable"], invoke_without_command=True)
-    async def enable(self, ctx, feature):
-        """enables or disables features like:
-        join/leave sounds or random guild icon"""
-        action = ctx.invoked_with.lower()
-
-        if feature not in self.features:
-            msg = f"`.{action} <{', '.join(self.features)}>`"
-            await ctx.send(embed=utils.embed(msg, error=True))
+        if response is None:
+            msg = f"There's no current {target.name}"
+            await interaction.response.send_message(embed=utils.embed(msg, error=True), ephemeral=True)
 
         else:
-            current = self.config.get(feature, ctx.guild.id)
-            if (action == 'enable') is current:
-                cur_action = "active" if current else "inactive"
-                msg = f"The {feature} feature is already `{cur_action}`"
-                await ctx.send(embed=utils.embed(msg, error=True))
+            msg = f"The {target.name} got removed"
+            await interaction.response.send_message(embed=utils.embed(msg))
 
-            else:
-                self.config.store(feature, not current, ctx.guild.id)
-                new_action = "active" if not current else "inactive"
-                msg = f"The {feature} feature is now {new_action}"
-                await ctx.send(embed=utils.embed(msg))
+    @app_commands.command(name="enable", description="enables features like: join/leave sounds or random guild icon")
+    @app_commands.choices(feature=utils.config_features)
+    @app_commands.checks.has_permissions(manage_channels=True)
+    async def enable(self, interaction, feature: app_commands.Choice[str]):
+        await self.toggle(interaction, feature, True)
 
-                if feature == "sound" and ctx.guild.voice_client:
-                    await ctx.guild.voice_client.disconnect()
+    @app_commands.command(name="disable", description="disables features like: join/leave sounds or random guild icon")
+    @app_commands.choices(feature=utils.config_features)
+    @app_commands.checks.has_permissions(manage_channels=True)
+    async def enable(self, interaction, feature: app_commands.Choice[str]):
+        await self.toggle(interaction, feature, False)
 
-    @commands.group(name="hide", invoke_without_command=True)
-    async def hide(self, ctx, channel: discord.VoiceChannel):
-        """hides given channel for the join/leave sound feature"""
-        hidden_channel = self.config.get('hidden', ctx.guild.id)
+    async def toggle(self, interaction, feature, state):
+        current = self.config.get(feature.value, interaction.guild.id)
+
+        if state is current:
+            cur_action = "active" if current else "inactive"
+            msg = f"The {feature.name} is already `{cur_action}`"
+            await interaction.response.send_message(embed=utils.embed(msg, error=True), ephemeral=True)
+
+        else:
+            self.config.store(feature.value, not current, interaction.guild.id)
+            new_action = "active" if not current else "inactive"
+            msg = f"The {feature.name} is now {new_action}"
+            await interaction.response.send_message(embed=utils.embed(msg))
+
+            if feature.value == "sound" and interaction.guild.voice_client:
+                await interaction.guild.voice_client.disconnect()
+
+    hide = app_commands.Group(name="hide", description="ignores given channels for the join sounds")
+
+    @hide.command(name="toggle", description="toggles given channel for the join sounds")
+    @app_commands.describe(channel="the channel you want to either hide or make visible again")
+    @app_commands.checks.has_permissions(manage_channels=True)
+    async def toggle_(self, interaction, channel: discord.VoiceChannel):
+        hidden_channel = self.config.get('hidden', interaction.guild.id)
         action = "hidden now..."
 
         if hidden_channel is None:
-            self.config.store('hidden', [channel.id], ctx.guild.id)
+            self.config.store('hidden', [channel.id], interaction.guild.id)
 
         elif channel.id in hidden_channel:
             hidden_channel.remove(channel.id)
@@ -162,16 +150,16 @@ class Config(commands.Cog):
             self.config.save()
 
         msg = f"The channel `{channel.name}` is {action}"
-        await ctx.send(embed=utils.embed(msg))
+        await interaction.response.send_message(embed=utils.embed(msg))
 
-    @hide.command(name="list")
-    async def list_(self, ctx):
-        """shows all hidden channels"""
-        hidden_ids = self.config.get('hidden', ctx.guild.id)
+    @hide.command(name="list", description="shows all hidden channels")
+    @app_commands.checks.has_permissions(manage_channels=True)
+    async def list_(self, interaction):
+        hidden_ids = self.config.get('hidden', interaction.guild.id)
 
         if not hidden_ids:
             msg = "All channels are currently visible..."
-            await ctx.send(embed=utils.embed(msg))
+            await interaction.response.send_message(embed=utils.embed(msg))
             return
 
         description = []
@@ -184,19 +172,20 @@ class Config(commands.Cog):
                 description.append(f"**#{channel.name}**")
 
         embed = utils.embed("\n".join(description))
-        await ctx.send(embed=embed)
+        await interaction.response.send_message(embed=embed)
 
     @hide.command(name="clear")
-    async def clear_(self, ctx):
+    @app_commands.checks.has_permissions(manage_channels=True)
+    async def clear_(self, interaction):
         """clears all hidden channels"""
-        hidden_ids = self.config.get('hidden', ctx.guild.id)
+        hidden_ids = self.config.get('hidden', interaction.guild.id)
 
         if hidden_ids:
             hidden_ids.clear()
             self.config.save()
 
         msg = "All channels are visible again..."
-        await ctx.send(embed=utils.embed(msg))
+        await interaction.response.send_message(embed=utils.embed(msg))
 
 
 async def setup(bot):

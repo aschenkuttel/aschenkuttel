@@ -1,4 +1,5 @@
 import aiohttp
+from discord import app_commands
 from discord.ext import commands, tasks
 from data.credentials import RITO_KEY
 from datetime import datetime
@@ -439,18 +440,12 @@ class League(commands.Cog):
 
         return summoner
 
-    def get_summoner_by_member(self, ctx, argument):
-        if argument is None:
-            member = ctx.author
+    def get_summoner_by_member(self, member):
+        summoner = self.summoner.get(member.id)
+        if summoner is None:
+            raise utils.NoSummonerLinked(member)
         else:
-            member = utils.get_member_by_name(ctx, argument)
-
-        if member is not None:
-            summoner = self.summoner.get(member.id)
-            if summoner is None:
-                raise utils.NoSummonerLinked(member)
-            else:
-                return summoner
+            return summoner
 
     async def save_summoner(self, user_id, data):
         arguments = self.parse_arguments(user_id, data)
@@ -556,11 +551,13 @@ class League(commands.Cog):
             data.get('last_match_id')
         ]
 
-    @commands.command(name="league")
-    async def league_(self, ctx, *, summoner_name):
-        """sets your connected summoner"""
+    league = app_commands.Group(name="league", description="commands for league of legends")
+
+    @league.command(name="set", description="sets your connected summoner")
+    @app_commands.describe(summoner_name="your summoner name")
+    async def set_(self, interaction, summoner_name: str):
         data = await self.fetch_summoner_basic(summoner_name)
-        old_summoner = self.summoner.get(ctx.author.id)
+        old_summoner = self.summoner.get(interaction.user.id)
 
         if old_summoner and old_summoner.id == data['id']:
             msg = f"`{old_summoner}` is already your connected summoner"
@@ -570,17 +567,44 @@ class League(commands.Cog):
 
         else:
             data_set = await self.fetch_summoner(data)
-            summoner = await self.save_summoner(ctx.author.id, data_set)
+            summoner = await self.save_summoner(interaction.user.id, data_set)
             msg = f"`{summoner}` is now your connected summoner"
 
-        await ctx.send(msg)
+        await interaction.response.send_message(msg)
 
-    @commands.command(name="summoner")
-    async def summoner_(self, ctx, *, argument=None):
-        """gives some basic information about your, someone's
-        connected summoner or some external summoner"""
-        summoner = await self.get_summoner(ctx, argument)
+    @league.command(name="check",
+                          description="checks if a summoner name is already used or free (only checks for availability)")
+    @app_commands.describe(username="the summoner name you want to check")
+    async def check_(self, interaction, username: str):
+        try:
+            if len(username) > 16:
+                adj = "too long"
+            else:
+                await self.fetch_summoner_basic(username)
+                adj = "unavailable"
+        except utils.SummonerNotFound:
+            adj = "available"
 
+        msg = f"`{username}` is {adj}"
+        await interaction.response.send_message(msg)
+
+    @app_commands.command(name="summoner", description="gives some basic information about your or someone's connected summoner")
+    @app_commands.describe(member="the member you want to get information about (optional)")
+    async def summoner_(self, interaction, member: discord.Member = None):
+        summoner = self.get_summoner_by_member(member or interaction.user)
+        await self.display_summoner(interaction, summoner)
+
+    @app_commands.command(name="summoner-gg", description="gives you some basic information about any summoner")
+    @app_commands.describe(summoner_name="the summoner name you want to get information about")
+    async def summoner_gg_(self, interaction, summoner_name: str):
+        base_data = await self.fetch_summoner_basic(summoner_name)
+        summoner_data = await self.fetch_summoner(base_data)
+        arguments = self.parse_arguments(None, summoner_data)
+        summoner = Summoner(arguments)
+        await self.display_summoner(interaction, summoner)
+
+
+    async def display_summoner(self, interaction, summoner):
         title = f"{summoner.name} (LV {summoner.level})"
         embed = discord.Embed(title=title, url=summoner.op_gg, colour=self.colour)
         embed.set_thumbnail(url=summoner.icon_url)
@@ -591,13 +615,25 @@ class League(commands.Cog):
         ]
 
         embed.description = "\n".join(parts)
-        await ctx.send(embed=embed)
+        await interaction.response.send_message(embed=embed)
 
-    @commands.command(name="mastery")
-    async def mastery_(self, ctx, *, argument=None):
-        """gives the top 5 champion masteries of your, someone's
-        connected summoner or some external summoner"""
-        summoner = await self.get_summoner(ctx, argument)
+    @app_commands.command(name="mastery", description="gives the top 5 champion masteries of your or someone's connected summoner")
+    @app_commands.describe(member="the member you want to get information about (optional)")
+    async def mastery_(self, interaction, member: discord.Member = None):
+        summoner = self.get_summoner_by_member(member or interaction.user)
+        await self.display_mastery(interaction, summoner)
+
+
+    @app_commands.command(name="mastery-gg", description="gives the top 5 champion masteries of any summoner")
+    @app_commands.describe(summoner_name="the summoner name you want to get information about")
+    async def mastery_gg_(self, interaction, summoner_name: str):
+        base_data = await self.fetch_summoner_basic(summoner_name)
+        summoner_data = await self.fetch_summoner(base_data)
+        arguments = self.parse_arguments(None, summoner_data)
+        summoner = Summoner(arguments)
+        await self.display_mastery(interaction, summoner)
+
+    async def display_mastery(self, interaction, summoner):
         masteries = await self.fetch_masteries(summoner.id)
         title = f"{summoner.name} (LV {summoner.level})"
         embed = discord.Embed(title=title, colour=self.colour)
@@ -615,23 +651,7 @@ class League(commands.Cog):
 
             embed.description = "\n".join(parts)
 
-        await ctx.send(embed=embed)
-
-    @commands.command(name="check")
-    async def check_(self, ctx, *, username):
-        """checks if given summoner name is already used or free,
-        keep in mind that it only looks for availability and not
-        if the given summoner name is valid as well"""
-        try:
-            if len(username) > 16:
-                msg = "too long"
-            else:
-                await self.fetch_summoner_basic(username)
-                msg = "unavailable"
-        except utils.SummonerNotFound:
-            msg = "available"
-
-        await ctx.send(f"`{username}` is {msg}")
+        await interaction.response.send_message(embed=embed)
 
 
 async def setup(bot):

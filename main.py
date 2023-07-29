@@ -1,4 +1,5 @@
 from data.credentials import TOKEN, UNSPLASH_KEY, default_prefix
+from utils import on_command_error
 from discord.ext import commands
 import aiosqlite
 import discord
@@ -14,9 +15,9 @@ default_cogs = [
     "config",
     "help",
     "league",
-    "listen",
     "misc",
     "netflix",
+    "events",
     "remind",
     "self",
     "sound",
@@ -85,8 +86,13 @@ class Aschenkuttel(commands.Bot):
                    '(guild_id BIGINT, user_id BIGINT, date TIMESTAMP, ' \
                    'PRIMARY KEY (guild_id, user_id))'
 
+        events = 'CREATE TABLE IF NOT EXISTS events' \
+                    '(id INTEGER PRIMARY KEY AUTOINCREMENT, ' \
+                    'name TEXT, guild_id BIGINT, channel_id BIGINT, ' \
+                    'author_id BIGINT, date TIMESTAMP)'
+
         query_pool = (reminder, starboard, movies,
-                      summoner, birthday)
+                      summoner, birthday, events)
 
         for query in query_pool:
             await self.execute(query)
@@ -159,4 +165,9 @@ class Aschenkuttel(commands.Bot):
 
 
 self = Aschenkuttel(command_prefix=".")
+
+@self.tree.error
+async def tree_error(interaction, error):
+    await on_command_error(interaction, error)
+
 self.run(TOKEN)
