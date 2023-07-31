@@ -427,19 +427,6 @@ class League(commands.Cog):
         logger.error(f"League: {formatted}")
         raise error
 
-    async def get_summoner(self, ctx, argument):
-        # fetches summoner by member or author
-        summoner = self.get_summoner_by_member(ctx, argument)
-
-        # fetches by summoner name else
-        if summoner is None:
-            base_data = await self.fetch_summoner_basic(argument)
-            summoner_data = await self.fetch_summoner(base_data)
-            arguments = self.parse_arguments(None, summoner_data)
-            summoner = Summoner(arguments)
-
-        return summoner
-
     def get_summoner_by_member(self, member):
         summoner = self.summoner.get(member.id)
         if summoner is None:

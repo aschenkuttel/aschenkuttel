@@ -8,7 +8,7 @@ class Admin(commands.Cog):
 
     @app_commands.command(name="purge", description="deletes the last x messages in the channel")
     @app_commands.describe(amount="the amount of messages to delete, defaults to 10")
-    @app_commands.checks.has_permissions(manage_channels=True)
+    @app_commands.checks.has_permissions(administrator=True)
     async def purge_(self, interaction, amount: int = 10):
         await interaction.response.defer(ephemeral=True)
         await interaction.channel.purge(limit=amount, before=interaction.created_at)

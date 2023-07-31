@@ -1,31 +1,28 @@
 from discord.ext import commands
+from discord import app_commands
 import discord
-import random
 import utils
 
 
 class Utils(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.poll_time = 10
 
-    @commands.command(name="summon")
-    async def summon_(self, ctx):
-        """summons all members from the defined
-        lobby channel into your voice channel"""
+    @app_commands.command(name="summon", description="summons all members from the lobby into your voice channel")
+    async def summon_(self, interaction):
         try:
-            own_channel = ctx.author.voice.channel
+            own_channel = interaction.user.voice.channel
         except AttributeError:
             msg = "You'll have to be in a voice channel"
-            await ctx.send(msg)
+            await interaction.response.send_message(embed=utils.embed(msg, error=True), ephemeral=True)
             return
 
-        channel_id = self.bot.config.get('lobby', ctx.guild.id)
+        channel_id = self.bot.config.get('lobby', interaction.guild.id)
         channel = self.bot.get_channel(channel_id)
 
         if channel is None:
             msg = "This guild has no registered lobby"
-            await ctx.send(msg)
+            await interaction.response.send_message(embed=utils.embed(msg, error=True), ephemeral=True)
             return
 
         for member in channel.members:
@@ -36,29 +33,27 @@ class Utils(commands.Cog):
             except discord.Forbidden:
                 continue
 
-        await ctx.message.delete()
+        msg = f"Summoned all members from {channel.mention}"
+        await interaction.response.send_message(embed=utils.embed(msg))
 
-    @commands.command(name="mirror")
-    async def mirror_(self, ctx, *, member: utils.Member = None):
-        """displays the discord avatar of a guild member
-        or yourself if no member passed in the arguments"""
-        member = member or ctx.author
+    @app_commands.command(name="mirror", description="displays the discord avatar of a guild member or yourself")
+    @app_commands.describe(member="the member you want to get the avatar of (optional)")
+    async def mirror_(self, interaction, member: discord.Member = None):
+        member = member or interaction.user
         embed = discord.Embed()
         embed.set_image(url=member.display_avatar.url)
-        await ctx.send(embed=embed)
+        await interaction.response.send_message(embed=embed)
 
-    @commands.command(name="icon")
-    async def icon_(self, ctx):
-        """displays the guilds server icon"""
+    @app_commands.command(name="icon", description="displays the guilds server icon")
+    async def icon_(self, interaction):
         embed = discord.Embed(color=discord.Color.gold())
-        embed.set_image(url=ctx.guild.icon.url)
-        await ctx.send(embed=embed)
+        embed.set_image(url=interaction.guild.icon.url)
+        await interaction.response.send_message(embed=embed)
 
-    @commands.command(name="profile")
-    async def profile_(self, ctx, *, member: utils.Member = None):
-        """gives some basic stats about a guild member
-        or yourself if no member passed in the arguments"""
-        member = member or ctx.author
+    @app_commands.command(name="profile", description="gives some basic stats about a guild member or yourself")
+    @app_commands.describe(member="the member you want to get the profile of (optional)")
+    async def profile_(self, interaction, member: discord.Member = None):
+        member = member or interaction.user
         creation_date = member.created_at.strftime("%d.%m.%Y")
         desc = f"**Nickname:** {member.display_name}\n" \
                f"**Highest Role:** {member.top_role}\n" \
@@ -66,14 +61,8 @@ class Utils(commands.Cog):
         embed = discord.Embed(description=desc, color=member.colour)
         date = member.joined_at.strftime("%d.%m.%Y - %H:%M:%S")
         embed.set_footer(text=f"Member since {date}")
-        embed.set_author(name=member.name, icon_url=member.avatar_url)
-        await ctx.send(embed=embed)
-
-    @commands.command(name="choose")
-    async def choose(self, ctx, *arguments):
-        """chooses one random item out of the arguments"""
-        item = random.choice(arguments or ["nothing"])
-        await ctx.send(f"It's `{item}`")
+        embed.set_author(name=member.name, icon_url=member.avatar.url)
+        await interaction.response.send_message(embed=embed)
 
 
 async def setup(bot):

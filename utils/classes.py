@@ -1,6 +1,10 @@
+from data.credentials import allowed_pm_commands
 from discord.ext import commands
+from discord import app_commands
+import discord
 import utils
 import json
+import re
 
 
 class ConfigHandler:
@@ -74,22 +78,29 @@ class DefaultDict(dict):
             return value
 
 
-class Keyword:
-    def __init__(self, value, sign="="):
-        self.value = value
-        self.sign = sign
+class _Keyword:
+    def __init__(self, raw_value):
+        self.sign = None
+        self.value = None
 
-    def compare(self, other, first=None):
-        value = first or self.value
-        if value is None:
+        match = re.findall(r'([<=>])(\d+)', str(raw_value))
+
+        if not match:
+            return
+
+        self.sign = match[0][0]
+        self.value = int(match[0][1])
+
+    def compare(self, other):
+        if self.value is None:
             return True
 
         if self.sign == "<":
-            return other < value
+            return other < self.value
         elif self.sign == ">":
-            return other > value
+            return other > self.value
         else:
-            return other == value
+            return other == self.value
 
     def __bool__(self):
         return bool(self.value)
@@ -102,3 +113,22 @@ class Member(commands.Converter):
             raise commands.MemberNotFound(argument)
         else:
             return member
+
+
+class AshTree(app_commands.CommandTree):
+    async def interaction_check(self, interaction):
+        if interaction.type != discord.InteractionType.application_command:
+            return True
+
+        if interaction.guild is None:
+            if interaction.command.parent:
+                command_name = interaction.command.parent.name
+            else:
+                command_name = interaction.command.name
+
+            if command_name not in allowed_pm_commands:
+                msg = f"`{command_name}` is not allowed in private messages"
+                await interaction.response.send_message(embed=utils.embed(msg, error=True), ephemeral=True)
+                return False
+
+        return True

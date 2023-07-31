@@ -1,13 +1,13 @@
-from utils import keyword, input_to_seconds
+from utils import Keyword, input_to_seconds
 from discord.ext import commands, tasks
 from data.credentials import RAPID_KEY
 from difflib import SequenceMatcher
+from discord import app_commands
 from html import unescape
 import datetime
 import logging
 import asyncio
 import discord
-import typing
 import random
 import ftfy
 
@@ -137,62 +137,62 @@ class Netflix(commands.Cog):
         embed.set_footer(text=f"{len(self.movies)} movies in database")
         return embed
 
-    @commands.command(name="netflix")
-    async def netflix_(self, ctx, *, args=None):
-        """Returns random german netflix movie, specify further with
-        these keywords: year, rating and runtime. Keywords are used
-        like this: key=value. You can use both <> operators as well.
-        For example .netflix year>2000 rating>5 which would return
-        all movies released after 2000 with a rating more than 5"""
-        kwargs = {'rating': None, 'year': None, 'runtime': None}
-        genre, rating, year, runtime = keyword(args, strip=True, **kwargs)
-
+    @app_commands.command(name="netflix", description="returns a random german netflix movie")
+    @app_commands.describe(genre="the genre of the movie")
+    @app_commands.describe(year="the year the movie was released with <, > or =")
+    @app_commands.describe(rating="the rating of the movie in 1.0-5.0 with <, > or =")
+    @app_commands.describe(runtime="the runtime of the movie in minutes with <, > or =")
+    async def netflix_(self, interaction,
+                       genre: str = None,
+                       year: Keyword = None,
+                       rating: Keyword = None,
+                       runtime: Keyword = None):
         possible_movies = []
         await self._lock.wait()
+
         for movie in self.movies.values():
             if genre and genre not in movie.description:
                 continue
 
-            if not rating.compare(movie.rating):
+            if rating and not rating.compare(movie.rating):
                 continue
 
-            if not year.compare(movie.year):
+            if year and not year.compare(movie.year):
                 continue
 
             if runtime:
                 input_sec = input_to_seconds(runtime.value)
-                if not year.compare(input_sec, movie.seconds):
+                if not runtime.compare(input_sec, movie.seconds):
                     continue
 
             possible_movies.append(movie)
 
         if not possible_movies:
             msg = "sadly no movies were able to meet your requirements"
-            await ctx.send(msg)
+            await interaction.response.send_message(msg, ephemeral=True)
 
         else:
             movie = random.choice(possible_movies)
             embed = self.create_movie_embed(movie)
-            await ctx.send(embed=embed)
+            await interaction.response.send_message(embed=embed)
 
-    @commands.command(name="movie")
-    async def movie_(self, ctx, *, title_or_id: typing.Union[int, str]):
-        """returns either movies with similar title than the user input
-        or the movie which has the given id"""
-        if isinstance(title_or_id, int):
-            movie = self.movies.get(title_or_id)
+    @app_commands.command(name="movie",
+                          description="returns either movies with similar title then the user input or the movie with given id")
+    @app_commands.describe(identifier="the id or title of the movie")
+    async def movie_(self, interaction, identifier: str):
+        if identifier.isnumeric():
+            movie = self.movies.get(int(identifier))
 
             if movie is not None:
                 embed = self.create_movie_embed(movie)
-                await ctx.send(embed=embed)
+                await interaction.response.send_message(embed=embed)
                 return
 
         possible_titles = []
-        title = str(title_or_id)
         for movie in self.movies.values():
-            prob = SequenceMatcher(None, title, movie.title).ratio()
+            prob = SequenceMatcher(None, identifier, movie.title).ratio()
 
-            if prob >= 0.6 or title.lower() in movie.title.lower():
+            if prob >= 0.6 or identifier.lower() in movie.title.lower():
                 possible_titles.append(movie)
 
         if possible_titles:
@@ -204,9 +204,9 @@ class Netflix(commands.Cog):
                 represents.append(rep)
 
             embed = discord.Embed(description="\n".join(represents))
-            await ctx.send(embed=embed)
+            await interaction.response.send_message(embed=embed)
         else:
-            await ctx.send("no movies found")
+            await interaction.response.send_message("no movies found")
 
 
 async def setup(bot):

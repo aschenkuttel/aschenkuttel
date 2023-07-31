@@ -26,3 +26,13 @@ class WrongDateFormat(commands.CheckFailure):
 class NoBirthday(commands.CheckFailure):
     def __init__(self):
         super().__init__("missing birthday")
+
+
+class YoutubeVideoNotFound(commands.CheckFailure):
+    def __init__(self):
+        super().__init__("youtube video not found")
+
+
+class YoutubeVideoTooBig(commands.CheckFailure):
+    def __init__(self):
+        super().__init__("youtube videos can't be bigger than 20MB")

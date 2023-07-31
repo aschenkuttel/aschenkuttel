@@ -1,5 +1,4 @@
 from data.credentials import TOKEN, UNSPLASH_KEY, default_prefix
-from utils import on_command_error
 from discord.ext import commands
 import aiosqlite
 import discord
@@ -10,18 +9,17 @@ import utils
 import os
 
 default_cogs = [
-    "admin",
-    "birthday",
-    "config",
-    "help",
-    "league",
-    "misc",
-    "netflix",
+    "admin", # done
+    "birthday",  # done
+    "config", # done
+    "league",  # done
+    "misc",  # done
+    "netflix", # done
     "events",
-    "remind",
-    "self",
+    "remind", # done
+    "self", # done
     "sound",
-    "star"
+    "star"  # done
 ]
 
 
@@ -87,9 +85,9 @@ class Aschenkuttel(commands.Bot):
                    'PRIMARY KEY (guild_id, user_id))'
 
         events = 'CREATE TABLE IF NOT EXISTS events' \
-                    '(id INTEGER PRIMARY KEY AUTOINCREMENT, ' \
-                    'name TEXT, guild_id BIGINT, channel_id BIGINT, ' \
-                    'author_id BIGINT, date TIMESTAMP)'
+                 '(id INTEGER PRIMARY KEY AUTOINCREMENT, ' \
+                 'name TEXT, guild_id BIGINT, channel_id BIGINT, ' \
+                 'author_id BIGINT, date TIMESTAMP)'
 
         query_pool = (reminder, starboard, movies,
                       summoner, birthday, events)
@@ -156,18 +154,15 @@ class Aschenkuttel(commands.Bot):
             logger.addHandler(handler)
 
     async def setup_cogs(self):
-        for file in default_cogs:
-            try:
-                cog_path = f"cogs.{file}"
-                await self.load_extension(cog_path)
-            except commands.ExtensionNotFound:
-                print(f"module {file} not found")
+        for file in os.listdir(f"{self.path}/cogs"):
+            if file.endswith(".py"):
+                try:
+                    filename = file.split(".")[0]
+                    cog_path = f"cogs.{filename}"
+                    await self.load_extension(cog_path)
+                except (commands.ExtensionNotFound, discord.ext.commands.NoEntryPointError):
+                    print(f"module {file} not found")
 
 
-self = Aschenkuttel(command_prefix=".")
-
-@self.tree.error
-async def tree_error(interaction, error):
-    await on_command_error(interaction, error)
-
+self = Aschenkuttel(command_prefix=".", tree_cls=utils.AshTree)
 self.run(TOKEN)
