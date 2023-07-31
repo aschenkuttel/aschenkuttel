@@ -13,7 +13,6 @@ import io
 logger = logging.getLogger('self')
 
 
-
 class EditTimespan(discord.ui.Modal, title='Edit Timespan'):
     def __init__(self, view):
         super().__init__()
@@ -61,17 +60,16 @@ class EditTimespan(discord.ui.Modal, title='Edit Timespan'):
         message = await interaction.original_response()
         await message.edit(attachments=[self.view.file], view=self.view)
 
-
     async def on_error(self, interaction, error: Exception) -> None:
         logger.debug(f'Error with {interaction.data}: {error}')
         await interaction.response.send_message('Oops! Something went wrong.', ephemeral=True)
 
 
-
 class EditSoundView(discord.ui.View):
-    def __init__(self, bot, action, bytes_io):
-        super().__init__()
-        self.bot = bot
+    def __init__(self, interaction, action, bytes_io):
+        super().__init__(timeout=600)
+        self.bot = interaction.client
+        self.interaction = interaction
         self.action = action
         self.begin = 0.0
         self.end = 0.0
@@ -103,10 +101,17 @@ class EditSoundView(discord.ui.View):
         self.song.export(span_bytes_io, format='mp3')
         return discord.File(span_bytes_io, "success.mp3")
 
+    async def destroy(self, interaction=None):
+        self.stop()
+        self.bytes_io.close()
+        self.file.close()
+
+        if interaction is not None:
+            await interaction.response.edit_message(view=None)
+
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger, custom_id="cancel")
     async def cancel(self, interaction, _):
-        self.stop()
-        await interaction.response.edit_message(view=None)
+        await self.destroy(interaction)
 
     @discord.ui.button(label="Edit Timespan", style=discord.ButtonStyle.primary, custom_id="edit")
     async def edit(self, interaction, _):
@@ -121,6 +126,13 @@ class EditSoundView(discord.ui.View):
 
         file = await self.save_track(interaction.user.id)
         await interaction.response.edit_message(view=None, attachments=[file])
+
+        await self.destroy()
+
+    async def on_timeout(self) -> None:
+        await self.interaction.edit_original_message(view=None)
+        await self.destroy()
+
 
 class Sounds(commands.Cog):
     def __init__(self, bot):
@@ -238,26 +250,23 @@ class Sounds(commands.Cog):
                 vc.play(source=source)
 
     @staticmethod
-    async def download_youtube(url):
+    def download_youtube(url):
         video = YouTube(url)
 
         try:
-            file_size = video.streams.get_lowest_resolution().filesize_mb
-
-            if file_size > 20:
-                logger.debug(f"{url} exceeds 20mb")
-                raise utils.YoutubeVideoTooBig()
-
+            file_size = video.streams.get_audio_only().filesize_mb
         except Exception as error:
             logger.debug(f"pytube error: {error}")
             raise utils.YoutubeVideoNotFound()
 
-        buffer = io.BytesIO()
-        video.streams.get_lowest_resolution().stream_to_buffer(buffer)
-        buffer.seek(0)
+        if file_size > 20:
+            logger.debug(f"{url} exceeds 20mb")
+            raise utils.YoutubeVideoTooBig(file_size)
 
-        song = AudioSegment.from_file(buffer, format="mp4")
-        song.export("data/test.mp3", format="mp3")
+        buffer = io.BytesIO()
+        video.streams.get_audio_only().stream_to_buffer(buffer)
+        buffer.seek(0)
+        return buffer
 
     async def wait_for(self, ctx, reply):
         def check(m):
@@ -281,31 +290,25 @@ class Sounds(commands.Cog):
 
     @join_sound.command(name="youtube", description="sets your join-sound with a youtube video")
     @app_commands.describe(youtube_url="the youtube url of the sound you want to use")
-    async def join_sound_edit(self, interaction, youtube_url: str = None):
-        # if youtube_url is None:
-        #     try:
-        #         path = f"{self.bot.path}/data/connect/{interaction.user.id}.mp3"
-        #         func = functools.partial(os.remove, path)
-        #         await self.bot.loop.run_in_executor(None, func)
-        #         await interaction.response.send_message("Your join-sound has been reset")
-        #
-        #     except FileNotFoundError:
-        #         await interaction.response.send_message("You don't have a join-sound")
-        #     finally:
-        #         return
+    async def join_sound_edit(self, interaction, youtube_url: str):
+        await interaction.response.defer(ephemeral=interaction.guild is not None)
 
-        # tmp
-        path = "data/test.mp3"
-        bytes_io = open(path, "rb")
+        func = functools.partial(self.download_youtube, youtube_url)
+        bytes_io = await self.bot.loop.run_in_executor(None, func)
 
-        view = EditSoundView(self.bot, "connect", bytes_io)
-        await interaction.response.send_message(file=view.file, view=view)
-
+        view = EditSoundView(interaction, "connect", bytes_io)
+        await interaction.followup.send(file=view.file, view=view)
 
     @join_sound.command(name="local", description="sets your join-sound with a local file")
     async def join_sound_local(self, interaction, file: discord.Attachment):
+        await interaction.response.defer(ephemeral=interaction.guild is not None)
 
-        pass
+        async with self.bot.session.get(file.url) as file:
+            data = await file.read()
+            bytes_io = io.BytesIO(data)
+
+        view = EditSoundView(interaction, "connect", bytes_io)
+        await interaction.followup.send(file=view.file, view=view)
 
     @join_sound.command(name="reset", description="resets your join-sound")
     async def join_sound_reset(self, interaction):
@@ -317,63 +320,41 @@ class Sounds(commands.Cog):
 
         except FileNotFoundError:
             await interaction.response.send_message("You don't have a join-sound")
-        finally:
-            return
 
-    @commands.command(name="connect", aliases=["disconnect"])
-    async def connect_(self, ctx, begin: float = None, end: float = None):
-        """sets your current sound when you pass an audio file
-        with the command and state a point of time in seconds
-        for the beginning and end of your sound, if you don't
-        pass anything your sound will be deleted"""
-        state = ctx.invoked_with.lower()
+    leave_sound = app_commands.Group(name="leave-sound", description="all commands related to your leave-sound")
 
-        if begin is not None:
-            if ((end or 5) - begin) > 5:
-                msg = "The maximum duration is 5 seconds"
-                await ctx.send(msg)
-                return
+    @leave_sound.command(name="youtube", description="sets your leave-sound with a youtube video")
+    @app_commands.describe(youtube_url="the youtube url of the sound you want to use")
+    async def leave_sound_edit(self, interaction, youtube_url: str):
+        await interaction.response.defer(ephemeral=interaction.guild is not None)
 
-            if ctx.message.attachments:
-                url = ctx.message.attachments[0].url
+        func = functools.partial(self.download_youtube, youtube_url)
+        bytes_io = await self.bot.loop.run_in_executor(None, func)
 
-                async with self.bot.session.get(url) as file:
-                    data = await file.read()
-                    self.cache[ctx.author.id] = data
+        view = EditSoundView(interaction, "disconnect", bytes_io)
+        await interaction.followup.send(file=view.file, view=view)
 
-            else:
-                cached_data = self.cache.get(ctx.author.id)
-                if cached_data is None:
-                    msg = "There's nothing in cache, you need to\n" \
-                          "upload your audio file with the command"
-                    await ctx.send(msg)
-                    return
+    @leave_sound.command(name="local", description="sets your leave-sound with a local file")
+    async def leave_sound_local(self, interaction, file: discord.Attachment):
+        await interaction.response.defer(ephemeral=interaction.guild is not None)
 
-            func = functools.partial(self.edit_track, data, begin, end)
-            song, new_file = await self.bot.loop.run_in_executor(None, func)
+        async with self.bot.session.get(file.url) as file:
+            data = await file.read()
+            bytes_io = io.BytesIO(data)
 
-            msg = "Do you want to use this version? Y/N"
-            file = discord.File(new_file, "version.mp3")
-            reply = await ctx.send(msg, file=file)
+        view = EditSoundView(interaction, "disconnect", bytes_io)
+        await interaction.followup.send(file=view.file, view=view)
 
-            response = await self.wait_for(ctx, reply)
-            if response is True:
-                path = f"{self.bot.path}/data/{state}/{ctx.author.id}.mp3"
-                func = functools.partial(song.export, path)
-                await self.bot.loop.run_in_executor(None, func)
-                self.cache.pop(ctx.author.id)
+    @leave_sound.command(name="reset", description="resets your leave-sound")
+    async def leave_sound_reset(self, interaction):
+        try:
+            path = f"{self.bot.path}/data/disconnect/{interaction.user.id}.mp3"
+            func = functools.partial(os.remove, path)
+            await self.bot.loop.run_in_executor(None, func)
+            await interaction.response.send_message("Your leave-sound has been reset")
 
-                await ctx.send(f"Your {state} sound has been set up")
-
-        else:
-            try:
-                path = f"{self.bot.path}/data/{state}/{ctx.author.id}.mp3"
-                func = functools.partial(os.remove, path)
-                await self.bot.loop.run_in_executor(None, func)
-                await ctx.send(f"Your {state} sound has been reset")
-
-            except FileNotFoundError:
-                await ctx.send(f"You don't have a {state} sound")
+        except FileNotFoundError:
+            await interaction.response.send_message("You don't have a leave-sound")
 
 
 async def setup(bot):

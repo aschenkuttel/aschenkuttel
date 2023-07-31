@@ -1,38 +1,43 @@
-from discord.ext import commands
+from discord import app_commands
 
 
-class SummonerNotFound(commands.CheckFailure):
+class SummonerNotFound(app_commands.CheckFailure):
     def __init__(self, arg):
         self.arg = arg
         super().__init__(f"summoner {self.arg} not found")
 
 
-class NoSummonerLinked(commands.CheckFailure):
+class NoSummonerLinked(app_commands.CheckFailure):
     def __init__(self, member):
         self.member = member
         super().__init__(f"{self.member.name} has no connected summoner")
 
 
-class NoRiotResponse(commands.CheckFailure):
+class NoRiotResponse(app_commands.CheckFailure):
     def __init__(self, ):
         super().__init__("Riot API not responding")
 
 
-class WrongDateFormat(commands.CheckFailure):
-    def __init__(self):
-        super().__init__("invalid date format")
-
-
-class NoBirthday(commands.CheckFailure):
+class NoBirthday(app_commands.CheckFailure):
     def __init__(self):
         super().__init__("missing birthday")
 
 
-class YoutubeVideoNotFound(commands.CheckFailure):
+class YoutubeVideoNotFound(app_commands.CheckFailure):
     def __init__(self):
         super().__init__("youtube video not found")
 
 
-class YoutubeVideoTooBig(commands.CheckFailure):
-    def __init__(self):
-        super().__init__("youtube videos can't be bigger than 20MB")
+class YoutubeVideoTooBig(app_commands.CheckFailure):
+    def __init__(self, file_size):
+        super().__init__(f"youtube video exceeds 20MB limit with an estimated size of {file_size}MB")
+
+
+all_errors = (
+    SummonerNotFound,
+    NoSummonerLinked,
+    NoRiotResponse,
+    NoBirthday,
+    YoutubeVideoNotFound,
+    YoutubeVideoTooBig
+)
