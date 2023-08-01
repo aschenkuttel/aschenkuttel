@@ -18,7 +18,7 @@ default_cogs = [
     "events",
     "remind", # done
     "self", # done
-    "sound",
+    "sound", # done
     "star"  # done
 ]
 
@@ -50,6 +50,7 @@ class Aschenkuttel(commands.Bot):
 
         db_path = f"{self.path}/data/database.db"
         self.db = await aiosqlite.connect(db_path)
+        self.db.row_factory = aiosqlite.Row
         await self.setup_tables()
 
         self._lock.set()
@@ -84,10 +85,12 @@ class Aschenkuttel(commands.Bot):
                    '(guild_id BIGINT, user_id BIGINT, date TIMESTAMP, ' \
                    'PRIMARY KEY (guild_id, user_id))'
 
-        events = 'CREATE TABLE IF NOT EXISTS events' \
+        events = 'CREATE TABLE IF NOT EXISTS watch_parties' \
                  '(id INTEGER PRIMARY KEY AUTOINCREMENT, ' \
                  'name TEXT, guild_id BIGINT, channel_id BIGINT, ' \
-                 'author_id BIGINT, date TIMESTAMP)'
+                 'author_id BIGINT, participants JSON, ' \
+                 'next_date TIMESTAMP, recurring BOOL, ' \
+                 'UNIQUE (guild_id, author_id))'
 
         query_pool = (reminder, starboard, movies,
                       summoner, birthday, events)
