@@ -132,3 +132,6 @@ class AshTree(app_commands.CommandTree):
                 return False
 
         return True
+
+    async def _call(self, interaction: discord.Interaction) -> None:
+        await super()._call(utils.Interkuttel(interaction))  # noqa (ignore error)

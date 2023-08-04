@@ -1,6 +1,9 @@
 from discord.ext import commands, tasks
 from discord import app_commands
 from discord import ui
+from datetime import datetime
+from dateutil import relativedelta
+import dateparser
 import asyncio
 import logging
 import discord
@@ -10,7 +13,8 @@ logger = logging.getLogger('self')
 
 
 class WatchParty:
-    def __init__(self, args):
+    def __init__(self, bot, args):
+        self.bot = bot
         (
             self.id,
             self.name,
@@ -40,6 +44,84 @@ class WatchParty:
             else:
                 return f"{time} on {weekday}"
 
+    @property
+    def insert_args(self):
+        return
+
+    async def create_next_date(self):
+        if self.next_date is None:
+            return
+
+        if self.recurring == 0:
+            self.next_date = None
+
+        else:
+            next_date = self.next_date + relativedelta(days=self.recurring)
+            self.next_date = next_date
+
+        await self.bot.execute("UPDATE watch_parties SET next_date = $1, recurring = $2 WHERE id = $3", (
+            self.next_date,
+            self.recurring,
+            self.id
+        ))
+
+    async def insert(self):
+        cursor = await self.bot.db.execute(
+            "INSERT INTO watch_parties (name, guild_id, channel_id, author_id, participants, next_date, recurring) "
+            "VALUES ($1, $2, $3, $4, $5, $6, $7)", (
+                self.name,
+                self.guild_id,
+                self.channel_id,
+                self.author_id,
+                json.dumps(self.participants, separators=(',', ':')),
+                self.next_date,
+                self.recurring
+            ))
+
+        self.id = cursor.lastrowid
+        await self.bot.db.commit()
+
+    async def delete(self):
+        query = "DELETE FROM watch_parties WHERE id = $1"
+        await self.bot.execute(query, self.id)
+
+    async def add_participant(self, user_id):
+        if user_id in self.participants:
+            return False
+
+        self.participants.append(user_id)
+        query = "UPDATE watch_parties SET participants = $1 WHERE id = $2"
+        await self.bot.execute(query, json.dumps(self.participants), self.id)
+        return True
+
+    async def remove_participant(self, user_id):
+        if user_id not in self.participants:
+            return False
+
+        self.participants.remove(user_id)
+        query = "UPDATE watch_parties SET participants = $1 WHERE id = $2"
+        await self.bot.execute(query, json.dumps(self.participants), self.id)
+        return True
+
+    async def send(self):
+        msg = f"**Watch Party:** {self.name}\n" \
+              f"**Next Date:** {self.date_str}\n" \
+              f"**Participants:** {', '.join([f'<@{p}>' for p in self.participants])}"
+
+        channel = self.bot.get_channel(self.channel_id)
+
+        if channel is None:
+            return
+
+        try:
+            await channel.send(msg)
+            logger.debug(f"watch_party {self.id}: successful notification")
+
+        except (discord.Forbidden, discord.HTTPException):
+            logger.debug(f"watch_party {self.id}: notification not allowed")
+            return
+
+
 class CreateView(ui.View):
     def __init__(self, cog, name, author_id):
         super().__init__(timeout=600)
@@ -60,8 +142,8 @@ class CreateView(ui.View):
 
     @ui.button(label="Create", style=discord.ButtonStyle.green)
     async def create(self, interaction, _):
-        party_id, party_name = await self.cog.create_party(interaction, self.name, self.participants)
-        msg = f"Successfully created watch party `{party_name}` with ID: {party_id}"
+        party = await self.cog.create_party(interaction, self.name, self.participants)
+        msg = f"Successfully created watch party `{party.name}` with ID: {party.id}"
         await interaction.response.edit_message(content=msg, view=None)
         self.cleanup()
 
@@ -77,10 +159,25 @@ class Party(commands.GroupCog, name="watchparty"):
     def __init__(self, bot):
         self.bot = bot
         self.type = 2
+        self.settings = {'languages': ['de', 'en'], 'settings': {'PREFER_DATES_FROM': "future"}}
         self.cache = {}
-        # self._task = self.bot.loop.create_task(self.party_loop())
+        self._task = self.bot.loop.create_task(self.party_loop())
         self._lock = asyncio.Event(loop=bot.loop)
-        self.current_reminder = None
+        self.current_watch_party = None
+        self.garbage_collector.start()
+
+    def cog_unload(self):
+        self._task.cancel()
+        self.garbage_collector.cancel()
+
+    def restart(self, party=None):
+        self._task.cancel()
+
+        if party is None:
+            self._lock.clear()
+
+        self.current_watch_party = party
+        self._task = self.bot.loop.create_task(self.party_loop())
 
     @tasks.loop(hours=24)
     async def garbage_collector(self):
@@ -89,7 +186,7 @@ class Party(commands.GroupCog, name="watchparty"):
         for guild in self.bot.guilds:
             query = "SELECT * FROM watch_parties WHERE guild_id = $1"
             rows = await self.bot.fetch(query, guild.id)
-            parties = [WatchParty(row) for row in rows]
+            parties = [WatchParty(None, row) for row in rows]
 
             for party in parties:
                 invalid_channel = party.channel_id not in [c.id for c in guild.channels]
@@ -101,53 +198,34 @@ class Party(commands.GroupCog, name="watchparty"):
                     reason = "invalid channel" if invalid_channel else "invalid author"
                     logger.debug(f"deleted watch party {party.id} from guild {guild.id} due to {reason}")
 
+    async def party_loop(self):
+        await self.bot.wait_until_unlocked()
+        while not self.bot.is_closed():
 
-    # async def party_loop(self):
-    #     await self.bot.wait_until_unlocked()
-    #     while not self.bot.is_closed():
-    #
-    #         if not self.current_reminder:
-    #             query = 'SELECT * FROM reminder ORDER BY expiration'
-    #             data = await self.bot.fetchone(query)
-    #
-    #             if data is not None:
-    #                 self.current_reminder = Timer(self.bot, data)
-    #
-    #         if self.current_reminder:
-    #             logger.debug(f"reminder {self.current_reminder.id}: sleeping")
-    #
-    #             difference = (self.current_reminder.expiration - datetime.now())
-    #             seconds = difference.total_seconds()
-    #             await asyncio.sleep(seconds)
-    #
-    #             query = "DELETE FROM reminder WHERE id = $1"
-    #             await self.bot.execute(query, self.current_reminder.id)
-    #
-    #             if seconds > -60:
-    #                 logger.debug(f"reminder {self.current_reminder.id}: send message")
-    #                 await self.current_reminder.send()
-    #
-    #             self.current_reminder = None
-    #             self._lock.clear()
-    #
-    #         else:
-    #             await self._lock.wait()
+            if not self.current_watch_party:
+                query = 'SELECT * FROM watch_parties ORDER BY next_date'
+                data = await self.bot.fetchone(query)
 
-    # @commands.group(name="watchparty")
-    # async def watchparty(self, ctx):
-    #     pass
+                if data is not None:
+                    self.current_watch_party = WatchParty(self.bot, data)
 
-    # @watchparty.command(name="create")
-    # async def _create(self, ctx, name, date):
-    #     pass
-    #
-    # @watchparty.command(name="join")
-    # async def _join(self, ctx, name):
-    #     pass
-    #
-    # @watchparty.command(name="leave")
-    # async def _leave(self, ctx, name):
-    #     pass
+            if self.current_watch_party:
+                logger.debug(f"watch_party {self.current_watch_party.id}: sleeping")
+
+                difference = (self.current_watch_party.next_date - datetime.now())
+                seconds = difference.total_seconds()
+                await asyncio.sleep(seconds)
+
+                if seconds > -60:
+                    logger.debug(f"reminder {self.current_watch_party.id}: send message")
+                    await self.current_watch_party.send()
+
+                await self.current_watch_party.create_next_date()
+                self.current_watch_party = None
+                self._lock.clear()
+
+            else:
+                await self._lock.wait()
 
     def cleanup(self, interaction):
         self.cache.pop(interaction.user.id, None)
@@ -157,24 +235,31 @@ class Party(commands.GroupCog, name="watchparty"):
         row = await self.bot.fetchone(query, party_id)
 
         if row is not None:
-            return WatchParty(row)
+            return WatchParty(self.bot, row)
 
     async def fetch_party_by_owner(self, interaction):
         query = "SELECT * FROM watch_parties WHERE guild_id = $1 AND author_id = $2"
         row = await self.bot.fetchone(query, interaction.guild.id, interaction.user.id)
 
         if row is not None:
-            return WatchParty(row)
+            return WatchParty(self.bot, row)
 
     async def create_party(self, interaction, name, participants):
-        query = "INSERT INTO watch_parties (name, guild_id, channel_id, author_id, participants, next_date, recurring) " \
-                "VALUES ($1, $2, $3, $4, $5, $6, $7)"
+        party = WatchParty(self.bot, (0, name, interaction.guild.id,
+                                      interaction.channel_id, interaction.user.id,
+                                      participants, None, 0))
 
-        users = json.dumps(participants, separators=(',', ':'))
-        await self.bot.db.execute(query, (name, interaction.guild.id,
-                                          interaction.channel_id, interaction.user.id,
-                                          users, None, False))
-        await self.bot.db.commit()
+        await party.insert()
+
+        if self.current_watch_party is None:
+            self.current_watch_party = party
+            self._lock.set()
+
+        else:
+            if party.next_date < self.current_watch_party.next_date:
+                self.restart(party)
+
+        return party
 
     @app_commands.command(name="create", description="Creates a new watch party in this server")
     async def create_(self, interaction, name: str):
@@ -194,10 +279,38 @@ class Party(commands.GroupCog, name="watchparty"):
         view = CreateView(self, name, interaction.user.id)
         await interaction.response.send_message(view=view)
 
+    @app_commands.command(name="next_date", description="Sets the next date of your watch party")
+    @app_commands.describe(date="the next date of your watch party in `DD.MM.YYYY HH:MM`",
+                           recurring="the amount of days between each watch party if it should be recurring")
+    async def next_date_(self, interaction, date: str, recurring: app_commands.Range[int, 0, 360] = 0):
+        party = await self.fetch_party_by_owner(interaction)
+
+        if party is None:
+            msg = "You don't have an active watch party"
+            await interaction.response.send_message(msg, ephemeral=True)
+            return
+
+        try:
+            expected_date = dateparser.parse(date, **self.settings)
+        except Exception as error:
+            logger.debug(error)
+            expected_date = None
+
+        if expected_date is None:
+            msg = "No valid time format"
+            await interaction.response.send_message(msg, ephemeral=True)
+            return
+
+        query = "UPDATE watch_parties SET next_date = $1, recurring = $2 WHERE id = $3"
+        await self.bot.execute(query, expected_date.timestamp(), recurring, party.id)
+
+        msg = f"Successfully set next date of watch party `{party.name}` to `{expected_date}`"
+        await interaction.response.send_message(msg)
+
     @app_commands.command(name="list", description="Lists all watch parties in this Server")
     async def _list(self, interaction):
         party_rows = await self.bot.fetch("SELECT * FROM watch_parties WHERE guild_id = $1", interaction.guild.id)
-        parties = [WatchParty(row) for row in party_rows]
+        parties = [WatchParty(self.bot, row) for row in party_rows]
 
         if not parties:
             await interaction.response.send_message("There are no watch parties in this server!")
@@ -221,21 +334,24 @@ class Party(commands.GroupCog, name="watchparty"):
 
             await interaction.response.send_message(embed=embed)
 
-
-    @app_commands.command(name="delete", description="Deletes a watch party in this server")
+    @app_commands.command(name="delete", description="Deletes your watch party in this server")
     async def delete_(self, interaction):
         party = await self.fetch_party_by_owner(interaction)
 
         if party is None:
             msg = "You don't have an active watch party"
             await interaction.response.send_message(msg, ephemeral=True)
-            return
+        else:
+            await party.delete()
 
-        query = "DELETE FROM watch_parties WHERE id = $1"
-        await self.bot.execute(query, party.id)
-        await interaction.response.send_message(f"Successfully deleted watch party: {party.name}")
+            if self.current_watch_party == party:
+                self.restart()
+
+            msg = f"Successfully deleted watch party `{party.name}`"
+            await interaction.response.send_message(msg)
 
     @app_commands.command(name="join", description="Joins a watch party in this server")
+    @app_commands.describe(party_id="the ID of the watch party you want to join")
     async def join_(self, interaction, party_id: int):
         party = await self.fetch_party(party_id)
 
@@ -244,17 +360,17 @@ class Party(commands.GroupCog, name="watchparty"):
             await interaction.response.send_message(msg, ephemeral=True)
             return
 
-        if interaction.user.id in party.participants:
+        response = await party.add_participant(interaction.user.id)
+
+        if response is False:
             msg = "You are already in this watch party"
             await interaction.response.send_message(msg, ephemeral=True)
-            return
-
-        party.participants.append(interaction.user.id)
-        query = "UPDATE watch_parties SET participants = $1 WHERE id = $2"
-        await self.bot.execute(query, json.dumps(party.participants), party.id)
-        await interaction.response.send_message(f"Successfully joined watch party: {party.name}")
+        else:
+            msg = f"Successfully joined watch party: {party.name}"
+            await interaction.response.send_message(msg)
 
     @app_commands.command(name="leave", description="Leaves a watch party in this server")
+    @app_commands.describe(party_id="the ID of the watch party you want to leave")
     async def leave_(self, interaction, party_id: int):
         party = await self.fetch_party(party_id)
 
@@ -263,15 +379,16 @@ class Party(commands.GroupCog, name="watchparty"):
             await interaction.response.send_message(msg, ephemeral=True)
             return
 
-        if interaction.user.id not in party.participants:
+        response = await party.remove_participant(interaction.user.id)
+
+        if response is False:
             msg = "You are not in this watch party"
             await interaction.response.send_message(msg, ephemeral=True)
-            return
+        else:
+            msg = f"Successfully left watch party: {party.name}"
+            await interaction.response.send_message(msg)
 
-        party.participants.remove(interaction.user.id)
-        query = "UPDATE watch_parties SET participants = $1 WHERE id = $2"
-        await self.bot.execute(query, json.dumps(party.participants), party.id)
-        await interaction.response.send_message(f"Successfully left watch party: `{party.name}`")
 
 async def setup(bot):
-    await bot.add_cog(Party(bot))
+    pass
+    # await bot.add_cog(Party(bot))

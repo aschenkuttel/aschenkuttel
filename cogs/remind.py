@@ -6,6 +6,7 @@ import dateparser
 import asyncio
 import discord
 import logging
+import utils
 
 logger = logging.getLogger('dsbot')
 
@@ -223,26 +224,31 @@ class Reminder(commands.Cog):
         if self.current_reminder and self.current_reminder.id == reminder_id:
             self.restart()
 
-        await interaction.response.send_message("Your reminder has been deleted")
+        await interaction.response.send_message("Your reminder has been deleted", ephemeral=True)
 
     @reminder.command(name="clear", description="deletes all active reminders")
     async def clear(self, interaction):
-        query = 'DELETE FROM reminder WHERE author_id = $1 RETURNING id'
-        deleted_rows = await self.bot.fetch(query, interaction.user.id)
-        await self.bot.db.commit()
+        query = 'SELECT count(*) FROM reminder WHERE author_id = $1'
+        data = await self.bot.fetchone(query, interaction.user.id)
+        total = data[0]
 
-        if not deleted_rows:
+        if total == 0:
             msg = "You don't have any active reminders"
             await interaction.response.send_message(msg, ephemeral=True)
             return
 
-        if self.current_reminder:
-            old_ids = [rec['id'] for rec in deleted_rows]
-            if self.current_reminder.id in old_ids:
-                self.restart()
+        confirm = await interaction.prompt(f'Are you sure you want to delete {utils.Plural(total):reminder}?')
+        if not confirm:
+            return await interaction.response.send_message("Aborted", ephemeral=True)
 
-        msg = f"All your active reminders have been deleted ({len(deleted_rows)})"
-        await interaction.response.send_message(msg)
+        query = 'DELETE FROM reminder WHERE author_id = $1 RETURNING id'
+        await self.bot.execute(query, interaction.user.id)
+
+        if self.current_reminder and self.current_reminder.author_id == interaction.user.id:
+            self.restart()
+
+        msg = f"All your {total} active {utils.Plural(total):reminder} have been deleted"
+        await interaction.response.send_message(msg, ephemeral=True)
 
 
 async def setup(bot):

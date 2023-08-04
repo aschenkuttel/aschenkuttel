@@ -72,7 +72,7 @@ class Birthday(commands.Cog):
         await self.bot.wait_until_unlocked()
         today = datetime.now()
 
-        if today.hour != 12:
+        if today.hour != 10:
             return
 
         for guild in self.bot.guilds:

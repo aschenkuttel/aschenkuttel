@@ -61,8 +61,9 @@ class EditTimespan(discord.ui.Modal, title='Edit Timespan'):
         await message.edit(attachments=[self.view.file], view=self.view)
 
     async def on_error(self, interaction, error: Exception) -> None:
+        raise error
         logger.debug(f'Error with {interaction.data}: {error}')
-        await interaction.response.send_message('Oops! Something went wrong.', ephemeral=True)
+        await interaction.followup.send('Oops! Something went wrong.', ephemeral=True)
 
 
 class EditSoundView(discord.ui.View):
@@ -83,7 +84,7 @@ class EditSoundView(discord.ui.View):
 
     def edit_track(self):
         self.bytes_io.seek(0)
-        song = AudioSegment.from_file(self.bytes_io, format="mp3")
+        song = AudioSegment.from_file(self.bytes_io)
         self.song = song[int(self.begin * 1000):int(self.end * 1000)]
 
         span_bytes_io = io.BytesIO()
