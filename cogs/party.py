@@ -161,7 +161,7 @@ class CreateView(ui.View):
         self.stop()
 
 
-class Party(commands.GroupCog, name="watchparty"):
+class Party(commands.GroupCog, name="watchparty", description="Aschenkuttel Watch Party"):
     def __init__(self, bot):
         self.bot = bot
         self.type = 2
@@ -282,7 +282,8 @@ class Party(commands.GroupCog, name="watchparty"):
 
         return party
 
-    @app_commands.command(name="create", description="Creates a new watch party in this server")
+    @app_commands.command(name="create", description="creates a new watch party in this server")
+    @app_commands.describe(name="the name of your watch party")
     async def create_(self, interaction, name: str):
         if self.cache.get(interaction.user.id) is not None:
             msg = "You already have an active watch party creation"
@@ -300,7 +301,7 @@ class Party(commands.GroupCog, name="watchparty"):
         view = CreateView(self, name, interaction.user.id)
         await interaction.response.send_message(view=view)
 
-    @app_commands.command(name="next_date", description="Sets the next date of your watch party")
+    @app_commands.command(name="next_date", description="sets the next date of your watch party")
     @app_commands.describe(date="the next date of your watch party in `DD.MM.YYYY HH:MM`",
                            recurring="the amount of days between each watch party if it should be recurring")
     async def next_date_(self, interaction, date: str, recurring: app_commands.Range[int, 0, 360] = 0):
@@ -339,7 +340,7 @@ class Party(commands.GroupCog, name="watchparty"):
         msg = f"Successfully set next date of watch party **{party.name}** to {party.date_str()}"
         await interaction.response.send_message(msg)
 
-    @app_commands.command(name="list", description="Lists all watch parties in this Server")
+    @app_commands.command(name="list", description="lists all watch parties in this Server")
     async def _list(self, interaction):
         party_rows = await self.bot.fetch("SELECT * FROM watch_parties WHERE guild_id = $1", interaction.guild.id)
         parties = [WatchParty(self.bot, row) for row in party_rows]
@@ -366,7 +367,7 @@ class Party(commands.GroupCog, name="watchparty"):
 
             await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="delete", description="Deletes your watch party in this server")
+    @app_commands.command(name="delete", description="deletes your watch party in this server")
     async def delete_(self, interaction):
         party = await self.fetch_party_by_owner(interaction)
 
@@ -382,7 +383,7 @@ class Party(commands.GroupCog, name="watchparty"):
             msg = f"Successfully deleted watch party `{party.name}`"
             await interaction.response.send_message(msg)
 
-    @app_commands.command(name="join", description="Joins a watch party in this server")
+    @app_commands.command(name="join", description="joins a watch party in this server")
     @app_commands.describe(party_id="the ID of the watch party you want to join")
     async def join_(self, interaction, party_id: int):
         party = await self.fetch_party(party_id)
@@ -404,7 +405,7 @@ class Party(commands.GroupCog, name="watchparty"):
             msg = f"Successfully joined watch party: {party.name}"
             await interaction.response.send_message(msg)
 
-    @app_commands.command(name="leave", description="Leaves a watch party in this server")
+    @app_commands.command(name="leave", description="leaves a watch party in this server")
     @app_commands.describe(party_id="the ID of the watch party you want to leave")
     async def leave_(self, interaction, party_id: int):
         party = await self.fetch_party(party_id)
