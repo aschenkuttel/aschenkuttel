@@ -2,8 +2,9 @@ from discord.ext import commands, tasks
 from discord import app_commands
 from discord import ui
 from datetime import datetime
-from dateutil import relativedelta
+from dateutil.relativedelta import relativedelta
 import dateparser
+import traceback
 import asyncio
 import logging
 import discord
@@ -22,31 +23,33 @@ class WatchParty:
             self.channel_id,
             self.author_id,
             raw_participants,
-            self.next_date,
+            timestamp,
             self.recurring
         ) = args
 
         self.participants = json.loads(raw_participants)
+        self.next_date = datetime.fromtimestamp(timestamp) if timestamp else None
 
     def __eq__(self, other):
         return self.id == other.id
 
-    @property
-    def date_str(self):
+    def date_str(self, cursive=False):
         if self.next_date is None:
             return "nothing scheduled"
         else:
-            time = self.next_date.strftime("%H:%M")
-            weekday = self.next_date.strftime("%A")
+            time_rep = self.next_date.strftime("`%d.%m.%Y` at `%H:%M`")
 
             if self.recurring:
-                return f"{time} every {weekday}"
-            else:
-                return f"{time} on {weekday}"
+                if self.recurring != 0 and self.recurring % 7 == 0:
+                    week_days = int(self.recurring / 7)
+                    time_rep += f" every `{week_days} week{'s' if week_days > 1 else ''}`"
+                else:
+                    time_rep += f" every `{self.recurring} days`"
 
-    @property
-    def insert_args(self):
-        return
+            if cursive:
+                return f"*{time_rep.replace('`', '')}*"
+            else:
+                return time_rep
 
     async def create_next_date(self):
         if self.next_date is None:
@@ -56,14 +59,17 @@ class WatchParty:
             self.next_date = None
 
         else:
-            next_date = self.next_date + relativedelta(days=self.recurring)
-            self.next_date = next_date
+            # next_date = self.next_date + relativedelta(days=self.recurring)
+            self.next_date += relativedelta(days=self.recurring)
 
-        await self.bot.execute("UPDATE watch_parties SET next_date = $1, recurring = $2 WHERE id = $3", (
-            self.next_date,
-            self.recurring,
+        await self.bot.execute(
+            "UPDATE watch_parties SET next_date = $1 WHERE id = $2",
+            self.next_date.timestamp(),
             self.id
-        ))
+        )
+
+        new_date = self.next_date.strftime("%d.%m.%Y %H:%M") if self.next_date else "*nothing scheduled*"
+        logger.debug(f"watch_party {self.id}: next date set to {new_date}")
 
     async def insert(self):
         cursor = await self.bot.db.execute(
@@ -105,7 +111,7 @@ class WatchParty:
 
     async def send(self):
         msg = f"**Watch Party:** {self.name}\n" \
-              f"**Next Date:** {self.date_str}\n" \
+              f"**Next Date:** {self.date_str()}\n" \
               f"**Participants:** {', '.join([f'<@{p}>' for p in self.participants])}"
 
         channel = self.bot.get_channel(self.channel_id)
@@ -151,7 +157,7 @@ class CreateView(ui.View):
         self.cleanup()
 
     def cleanup(self):
-        self.cog.cache.pop(self.name, None)
+        self.cog.cache.pop(self.author_id, None)
         self.stop()
 
 
@@ -162,6 +168,7 @@ class Party(commands.GroupCog, name="watchparty"):
         self.settings = {'languages': ['de', 'en'], 'settings': {'PREFER_DATES_FROM': "future"}}
         self.cache = {}
         self._task = self.bot.loop.create_task(self.party_loop())
+        self._task.add_done_callback(self.loop_error_handler)
         self._lock = asyncio.Event(loop=bot.loop)
         self.current_watch_party = None
         self.garbage_collector.start()
@@ -203,22 +210,24 @@ class Party(commands.GroupCog, name="watchparty"):
         while not self.bot.is_closed():
 
             if not self.current_watch_party:
-                query = 'SELECT * FROM watch_parties ORDER BY next_date'
+                query = 'SELECT * FROM watch_parties WHERE next_date IS NOT NULL ORDER BY next_date LIMIT 1'
                 data = await self.bot.fetchone(query)
 
                 if data is not None:
                     self.current_watch_party = WatchParty(self.bot, data)
 
             if self.current_watch_party:
-                logger.debug(f"watch_party {self.current_watch_party.id}: sleeping")
-
                 difference = (self.current_watch_party.next_date - datetime.now())
                 seconds = difference.total_seconds()
+
+                logger.debug(f"watch_party {self.current_watch_party.id}: sleeping for {seconds} seconds")
                 await asyncio.sleep(seconds)
 
                 if seconds > -60:
                     logger.debug(f"reminder {self.current_watch_party.id}: send message")
                     await self.current_watch_party.send()
+                else:
+                    logger.debug(f"reminder {self.current_watch_party.id}: skipped due to timeout")
 
                 await self.current_watch_party.create_next_date()
                 self.current_watch_party = None
@@ -226,6 +235,22 @@ class Party(commands.GroupCog, name="watchparty"):
 
             else:
                 await self._lock.wait()
+
+    @staticmethod
+    def loop_error_handler(task):
+        try:
+            exc = task.exception()
+        except asyncio.CancelledError:
+            return
+
+        if not exc:
+            return
+
+        if not isinstance(exc, asyncio.CancelledError):
+            # # python >= 3.10
+            # traceback.print_exception(exc)
+            # python < 4.0
+            traceback.print_exception(type(exc), exc, exc.__traceback__)
 
     def cleanup(self, interaction):
         self.cache.pop(interaction.user.id, None)
@@ -245,19 +270,15 @@ class Party(commands.GroupCog, name="watchparty"):
             return WatchParty(self.bot, row)
 
     async def create_party(self, interaction, name, participants):
+        raw_participants = json.dumps(participants, separators=(',', ':'))
         party = WatchParty(self.bot, (0, name, interaction.guild.id,
                                       interaction.channel_id, interaction.user.id,
-                                      participants, None, 0))
+                                      raw_participants, None, 0))
 
         await party.insert()
 
-        if self.current_watch_party is None:
-            self.current_watch_party = party
-            self._lock.set()
-
-        else:
-            if party.next_date < self.current_watch_party.next_date:
-                self.restart(party)
+        if self.current_watch_party and party.next_date < self.current_watch_party.next_date:
+            self.restart(party)
 
         return party
 
@@ -292,19 +313,30 @@ class Party(commands.GroupCog, name="watchparty"):
 
         try:
             expected_date = dateparser.parse(date, **self.settings)
+            party.next_date = expected_date
+            party.recurring = recurring
         except Exception as error:
             logger.debug(error)
             expected_date = None
 
-        if expected_date is None:
-            msg = "No valid time format"
+        if expected_date is None or expected_date < datetime.now():
+            msg = "No valid time format or date is in the past"
             await interaction.response.send_message(msg, ephemeral=True)
             return
 
         query = "UPDATE watch_parties SET next_date = $1, recurring = $2 WHERE id = $3"
         await self.bot.execute(query, expected_date.timestamp(), recurring, party.id)
 
-        msg = f"Successfully set next date of watch party `{party.name}` to `{expected_date}`"
+        # set current watch party if there is none
+        if not self.current_watch_party:
+            self.current_watch_party = party
+            self._lock.set()
+
+        # restart if new date is earlier than current watch party
+        elif self.current_watch_party.next_date and expected_date < self.current_watch_party.next_date:
+            self.restart(party)
+
+        msg = f"Successfully set next date of watch party **{party.name}** to {party.date_str()}"
         await interaction.response.send_message(msg)
 
     @app_commands.command(name="list", description="Lists all watch parties in this Server")
@@ -315,11 +347,11 @@ class Party(commands.GroupCog, name="watchparty"):
         if not parties:
             await interaction.response.send_message("There are no watch parties in this server!")
         else:
-            embed = discord.Embed(title="Watch Parties in this server", color=0x2F3136)
+            embed = discord.Embed(title="Watch Parties in this server", color=discord.Color.blurple())
             description = []
 
             for party in parties:
-                next_date = party.next_date.strftime("%d.%m.%Y %H:%M") if party.next_date else "*nothing scheduled*"
+                next_date = party.date_str(True) if party.next_date else "*nothing scheduled*"
                 title = f"**{party.name}** by <@{party.author_id}>"
 
                 description.extend([title, next_date])
@@ -366,6 +398,9 @@ class Party(commands.GroupCog, name="watchparty"):
             msg = "You are already in this watch party"
             await interaction.response.send_message(msg, ephemeral=True)
         else:
+            if self.current_watch_party == party:
+                self.current_watch_party.participants.append(interaction.user.id)
+
             msg = f"Successfully joined watch party: {party.name}"
             await interaction.response.send_message(msg)
 
@@ -375,7 +410,7 @@ class Party(commands.GroupCog, name="watchparty"):
         party = await self.fetch_party(party_id)
 
         if party is None:
-            msg = f"There is no watch party with ID: {party_id}"
+            msg = f"There is no watch party with `ID {party_id}`"
             await interaction.response.send_message(msg, ephemeral=True)
             return
 
@@ -385,10 +420,12 @@ class Party(commands.GroupCog, name="watchparty"):
             msg = "You are not in this watch party"
             await interaction.response.send_message(msg, ephemeral=True)
         else:
+            if self.current_watch_party == party:
+                self.current_watch_party.participants.remove(interaction.user.id)
+
             msg = f"Successfully left watch party: {party.name}"
             await interaction.response.send_message(msg)
 
 
 async def setup(bot):
-    pass
-    # await bot.add_cog(Party(bot))
+    await bot.add_cog(Party(bot))
