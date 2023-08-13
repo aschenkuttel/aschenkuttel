@@ -169,7 +169,7 @@ class Party(commands.GroupCog, name="watchparty", description="Aschenkuttel Watc
         self.cache = {}
         self._task = self.bot.loop.create_task(self.party_loop())
         self._task.add_done_callback(self.loop_error_handler)
-        self._lock = asyncio.Event(loop=bot.loop)
+        self._lock = asyncio.Event()
         self.current_watch_party = None
         self.garbage_collector.start()
 

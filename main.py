@@ -45,7 +45,7 @@ class Aschenkuttel(commands.Bot):
 
     async def setup_hook(self):
         self._lock = asyncio.Event()
-        self.session = aiohttp.ClientSession(loop=self.loop)
+        self.session = aiohttp.ClientSession()
         await self.setup_cogs()
 
         db_path = f"{self.path}/data/database.db"

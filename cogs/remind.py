@@ -74,7 +74,7 @@ class Reminder(commands.Cog):
         self.settings = {'languages': ['de', 'en'], 'settings': {'PREFER_DATES_FROM': "future"}}
         self.preset = "%d.%m.%Y | %H:%M:%S Uhr"
         self._task = self.bot.loop.create_task(self.remind_loop())
-        self._lock = asyncio.Event(loop=bot.loop)
+        self._lock = asyncio.Event()
         self.current_reminder = None
 
     def cog_unload(self):

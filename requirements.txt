@@ -1,6 +1,7 @@
-aiosqlite==0.18.0
+aiosqlite
 aiohttp
-discord.py[voice]==2.2.2
-dateparser==1.1.8
+discord.py[voice]
+dateparser
 pydub
 ftfy==6.1.1
+pytube
