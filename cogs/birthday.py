@@ -62,7 +62,7 @@ class Birthday(commands.Cog):
             "https://media.tenor.com/VMC8fNKdQrcAAAAd/happy-birthday-bon-anniversaire.gif",
             "https://media.tenor.com/ebZ0rVyVysYAAAAC/cake-birthday.gif"
         )
-        self.birthday_loop.start()
+        # self.birthday_loop.start()
 
     def cog_unload(self):
         self.birthday_loop.cancel()
@@ -118,16 +118,17 @@ class Birthday(commands.Cog):
         elif suppress is False:
             raise utils.NoBirthday()
 
-    async def fetch_guild_birthdays(self, guild_id):
-        query = 'SELECT * FROM birthday WHERE guild_id = $1'
-        response = await self.bot.fetch(query, guild_id)
+    async def fetch_guild_birthdays(self, guild):
+        member_ids = [m.id for m in guild.members]
+        query_placeholder = [f"${i}" for i in range(1, len(member_ids) + 1)]
+        array = ", ".join(query_placeholder)
+        query = f'SELECT birthday FROM userdata WHERE birthday IS NOT NULL AND id IN ({array})'
+        response = await self.bot.fetch(query, *member_ids)
         return [Birthdate(row) for row in response]
 
     @app_commands.command(name="born", description="sets/changes your birthday")
     @app_commands.describe(date_str="your birthdate in `DD.MM.YYYY`")
     async def born_(self, interaction, date_str: str):
-        """sets/changes your birthday"""
-
         date = await self.fetch_birthday(interaction.user, suppress=True)
 
         kwargs = {'locales': ["de-BE"], 'settings': {'PREFER_DATES_FROM': 'past'}}
@@ -166,7 +167,7 @@ class Birthday(commands.Cog):
 
     @app_commands.command(name="birthdays", description="displays the next 5 birthdays of the server")
     async def birthdays_(self, interaction):
-        dates = await self.fetch_guild_birthdays(interaction.guild.id)
+        dates = await self.fetch_guild_birthdays(interaction.guild)
 
         if not dates:
             await interaction.response.send_message("no birthdays registered in this server")

@@ -34,7 +34,7 @@ class Listen(commands.Cog):
                 await interaction.response.send_message(embed=embed, ephemeral=True)
 
         else:
-            logger.debug(f"error with {interaction.data}: {error}")
+            logger.error(f"error with {interaction.data}: {error}")
             traceback.print_exception(type(error), error, error.__traceback__, file=sys.stderr)
             embed = utils.embed("something went wrong", error=True)
 
