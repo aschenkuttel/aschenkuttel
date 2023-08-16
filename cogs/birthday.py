@@ -13,10 +13,10 @@ class Birthdate:
     format = "%Y-%m-%d %H:%M:%S"
     preset = "%d.%m.%Y"
 
-    def __init__(self, row):
-        self.user_id, self.raw_date = row[1:]
+    def __init__(self, record):
+        self.user_id = record['id']
+        self.raw_date = record['birthday']
         self.date = datetime.strptime(self.raw_date, self.format)
-        self.member = None
 
     def append_year(self):
         self.date = self.date + relativedelta(years=1)
@@ -110,11 +110,12 @@ class Birthday(commands.Cog):
                     await bday_channel.send(embed=embed)
 
     async def fetch_birthday(self, member, suppress=False):
-        query = 'SELECT * FROM birthday WHERE guild_id = $1 AND user_id = $2'
-        response = await self.bot.fetchone(query, member.guild.id, member.id)
+        query = 'SELECT id, birthday FROM userdata WHERE id = $1'
+        record = await self.bot.fetchone(query, member.id)
+        birthday = record['birthday'] if record is not None else None
 
-        if response is not None:
-            return Birthdate(response)
+        if birthday is not None:
+            return Birthdate(record)
         elif suppress is False:
             raise utils.NoBirthday()
 
@@ -122,6 +123,8 @@ class Birthday(commands.Cog):
         member_ids = [m.id for m in guild.members]
         query_placeholder = [f"${i}" for i in range(1, len(member_ids) + 1)]
         array = ", ".join(query_placeholder)
+        # we have to concat but since we know the data origin we can safely do it (as long as we trust discord.py)
+        # sql injection: https://owasp.org/www-community/attacks/SQL_Injection
         query = f'SELECT birthday FROM userdata WHERE birthday IS NOT NULL AND id IN ({array})'
         response = await self.bot.fetch(query, *member_ids)
         return [Birthdate(row) for row in response]
@@ -145,9 +148,9 @@ class Birthday(commands.Cog):
         if date == birthday_date:
             await interaction.response.send_message("you already registered that date")
         else:
-            query = 'INSERT OR REPLACE INTO birthday ' \
-                    '(guild_id, user_id, date) VALUES ($1, $2, $3)'
-            await self.bot.execute(query, interaction.guild.id, interaction.user.id, birthday_date)
+            query = ('INSERT INTO userdata (id, birthday) VALUES ($1, $2) '
+                     'ON CONFLICT (id) DO UPDATE SET birthday = $2')
+            await self.bot.execute(query, interaction.user.id, birthday_date)
 
             date_rep = birthday_date.strftime(Birthdate.preset)
             await interaction.response.send_message(f"your birthday `{date_rep}` got registered")
@@ -206,8 +209,8 @@ class Birthday(commands.Cog):
     async def insecure_(self, interaction):
         await self.fetch_birthday(interaction.user)
 
-        query = 'DELETE FROM birthday WHERE guild_id = $1 AND user_id = $2'
-        await self.bot.execute(query, interaction.guild.id, interaction.user.id)
+        query = 'UPDATE userdata SET birthday = NULL WHERE id = $1'
+        await self.bot.execute(query, interaction.user.id)
         await interaction.response.send_message("birthday deleted you insecure thing")
 
 

@@ -35,9 +35,10 @@ class Owner(commands.Cog):
     @commands.command(name="sql")
     async def sql_(self, ctx, *, query):
         try:
-            await self.bot.db.execute(query)
+            cursor = await self.bot.db.execute(query)
+            result = await cursor.fetchall()
             await self.bot.db.commit()
-            await ctx.send("Done")
+            await ctx.send(result)
 
         except Exception as error:
             await ctx.send(error)

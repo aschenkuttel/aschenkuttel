@@ -37,7 +37,7 @@ class Aschenkuttel(commands.Bot):
 
         db_path = f"{self.path}/data/database.db"
         self.db = await aiosqlite.connect(db_path)
-        self.db.row_factory = aiosqlite.Row
+        self.db.row_factory = utils.Row
         await self.setup_tables()
 
         self._lock.set()
@@ -107,16 +107,11 @@ class Aschenkuttel(commands.Bot):
 
     async def setup_cogs(self):
         for file in os.listdir(f"{self.path}/cogs"):
-
-            if not file in ("remind.py", "self.py", "birthday.py"):
-                continue
-
             if file.endswith(".py"):
                 try:
                     filename = file.split(".")[0]
                     cog_path = f"cogs.{filename}"
                     await self.load_extension(cog_path)
-                    print(f"loaded {file}")
                 except (commands.ExtensionNotFound, discord.ext.commands.NoEntryPointError):
                     print(f"module {file} not found")
 

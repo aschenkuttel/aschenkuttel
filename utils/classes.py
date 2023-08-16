@@ -1,6 +1,7 @@
 from data.credentials import allowed_pm_commands
 from discord.ext import commands
 from discord import app_commands
+import aiosqlite
 import discord
 import utils
 import json
@@ -135,3 +136,10 @@ class AshTree(app_commands.CommandTree):
 
     async def _call(self, interaction: discord.Interaction) -> None:
         await super()._call(utils.Interkuttel(interaction))  # noqa (ignore error)
+
+class Row(aiosqlite.Row):
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default

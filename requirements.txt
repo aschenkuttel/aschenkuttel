@@ -3,5 +3,5 @@ aiohttp
 discord.py[voice]
 dateparser
 pydub
-ftfy==6.1.1
+ftfy
 pytube

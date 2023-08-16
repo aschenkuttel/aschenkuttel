@@ -85,7 +85,7 @@ class Reminder(commands.Cog):
         self.bot = bot
         self.type = 2
         self.settings = {'languages': ['de', 'en'], 'settings': {'PREFER_DATES_FROM': "future"}}
-        self.preset = "%d.%m.%Y | %H:%M:%S Uhr"
+        self.preset = "%d.%m.%Y | %H:%M:%S"
         self._task = self.bot.loop.create_task(self.remind_loop())
         self._task.add_done_callback(self.loop_error_handler)
         self._lock = asyncio.Event()
@@ -152,6 +152,9 @@ class Reminder(commands.Cog):
             traceback.print_exception(type(exc), exc, exc.__traceback__)
 
     async def save_reminder(self, interaction, raw_time, raw_reason):
+        user_zone = await self.get_timezone(interaction.user.id)
+        zone = dateutil.tz.gettz(user_zone) if user_zone else self.DEFAULT_TIMEZONE
+
         if len(raw_reason) > self.CHAR_LIMIT:
             msg = f"Reason must be less than {self.CHAR_LIMIT} characters"
             await interaction.response.send_message(msg, ephemeral=True)
@@ -159,8 +162,6 @@ class Reminder(commands.Cog):
 
         try:
             expected_date = dateparser.parse(raw_time, **self.settings)
-            user_zone = await self.get_timezone(interaction.user.id)
-            zone = dateutil.tz.gettz(user_zone) if user_zone else self.DEFAULT_TIMEZONE
             expected_date = expected_date.astimezone(zone)
 
         except Exception as error:
@@ -172,11 +173,6 @@ class Reminder(commands.Cog):
             await interaction.response.send_message(msg, ephemeral=True)
             return
 
-        embed = discord.Embed(colour=discord.Color.green())
-        embed.description = "**Reminder registered:**"
-        represent = expected_date.strftime(self.preset)
-        embed.set_footer(text=represent)
-
         now = datetime.utcnow().replace(tzinfo=None)
         when = expected_date.astimezone(timezone.utc).replace(tzinfo=None)
         difference = (when - now).total_seconds()
@@ -185,6 +181,12 @@ class Reminder(commands.Cog):
             msg = "The timestamp has already passed"
             await interaction.response.send_message(msg, ephemeral=True)
             return
+
+        embed = discord.Embed(colour=discord.Color.green())
+        embed.description = "**Reminder registered:**"
+        represent = expected_date.strftime(self.preset)
+        represent += f" ({self.timezone_to_offset(zone)})"
+        embed.set_footer(text=represent)
 
         arguments = [
             interaction.user.id,
@@ -202,9 +204,10 @@ class Reminder(commands.Cog):
             await reminder.send()
 
         else:
-            query = 'INSERT INTO reminder ' \
-                    '(author_id, channel_id, creation, expiration, reason)' \
-                    ' VALUES ($1, $2, $3, $4, $5)'
+            query = ('INSERT INTO reminder '
+                     '(author_id, channel_id, creation, expiration, reason) '
+                     'VALUES ($1, $2, $3, $4, $5)')
+
             cursor = await self.bot.db.execute(query, arguments)
             reminder.id = cursor.lastrowid
             await self.bot.db.commit()
@@ -226,6 +229,19 @@ class Reminder(commands.Cog):
         record = await self.bot.fetchone(query, user_id)
         return record['timezone'] if record else None
 
+    @staticmethod
+    def timezone_to_offset(zone):
+        dt = datetime.utcnow().astimezone(zone)
+        user_offset = dt.utcoffset()
+
+        if user_offset is not None:
+            minutes, _ = divmod(int(user_offset.total_seconds()), 60)
+            hours, minutes = divmod(minutes, 60)
+            return f'{hours:+03d}:{minutes:02d}'
+        else:
+            return '+00:00'
+
+
     @app_commands.command(name="remind",
                           description="remind yourself after given time in the channel the command was invoked in")
     async def remind(self, interaction):
@@ -245,13 +261,18 @@ class Reminder(commands.Cog):
 
         else:
             reminders = []
-            for row in data[:10]:
-                timer = Timer(self.bot, row)
-                date = timer.expiration.strftime(self.preset)
+            user_zone = await self.get_timezone(interaction.user.id)
+            zone = dateutil.tz.gettz(user_zone) if user_zone else self.DEFAULT_TIMEZONE
+
+            for record in data[:10]:
+                timer = Timer(self.bot, record)
+                utc = timer.expiration.replace(tzinfo=timezone.utc)
+                date = utc.astimezone(zone).strftime(self.preset)
                 reminders.append(f"`ID {timer.id}` | **{date}**")
 
             title = f"Your active reminders ({len(data)} in total):"
             embed = discord.Embed(description="\n".join(reminders), title=title)
+            embed.set_footer(text=f'Your UTC Offset: {self.timezone_to_offset(zone)}')
             await interaction.response.send_message(embed=embed)
 
     @reminder.command(name="remove", description="removes reminder with given id")
@@ -303,10 +324,10 @@ class Reminder(commands.Cog):
     @timezone.command(name='set', description='Sets your timezone.')
     @app_commands.describe(tz='The timezone to change to.')
     async def timezone_set(self, interaction, tz: TimeZone):
-        await self.bot.execute(
-            'INSERT OR REPLACE INTO userdata (id, timezone) VALUES ($1, $2)',
-            interaction.user.id, tz.key
-        )
+        query = ('INSERT INTO userdata (id, timezone) VALUES ($1, $2) '
+                 'ON CONFLICT (id) DO UPDATE SET timezone = $2')
+
+        await self.bot.execute(query, interaction.user.id, tz.key)
 
         msg = f'Your timezone has been set to {tz}.'
         await interaction.response.send_message(msg, ephemeral=True, delete_after=10)
@@ -335,7 +356,7 @@ class Reminder(commands.Cog):
         tz = await self.get_timezone(user.id)
 
         if tz is None:
-            msg = f'{user} has not set their timezone.'
+            msg = f'{user} has not set their timezone. (Default: Europe/Berlin)'
             await interaction.response.send_message(msg)
             return
 

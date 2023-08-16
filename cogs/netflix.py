@@ -15,26 +15,29 @@ logger = logging.getLogger('self')
 
 
 class Movie:
-    def __init__(self, entry):
-        if isinstance(entry, dict):
-            self.id = int(entry['netflixid'])
-            self.title = self.parse(entry['title'])
-            self.image_url = entry['image']
-            self.description = self.parse(entry['synopsis'])
-            self.rating = float(entry['rating'] or 0)
-            self.year = int(entry['released'])
-            self.runtime = entry['runtime']
-            self.seconds = input_to_seconds(self.runtime)
+    def __init__(self, record):
+        self.id = record['id']
+        self.title = record['title']
+        self.image_url = record['image_url']
+        self.description = record['description']
+        self.rating = record['rating']
+        self.year = record['year']
+        self.runtime = record['runtime']
+        self.seconds = record['seconds']
 
-        else:
-            self.id = entry[0]
-            self.title = entry[1]
-            self.image_url = entry[2]
-            self.description = entry[3]
-            self.rating = entry[4]
-            self.year = entry[5]
-            self.runtime = entry[6] or "Unknown"
-            self.seconds = entry[7]
+    @classmethod
+    def from_api(cls, api_record):
+        return cls({
+            'id': int(api_record['netflixid']),
+            'title': cls.parse(api_record['title']),
+            'image_url': api_record['image'],
+            'description': cls.parse(api_record['synopsis']),
+            'rating': float(api_record['rating'] or 0),
+            'year': int(api_record['released']),
+            'runtime': api_record['runtime'] or "Unknown",
+            'seconds': input_to_seconds(api_record['runtime']) if api_record['runtime'] else 0
+        })
+
 
     @property
     def url(self):
@@ -98,7 +101,7 @@ class Netflix(commands.Cog):
                 data = await resp.json()
 
                 for entry in data['ITEMS']:
-                    movie = Movie(entry)
+                    movie = Movie.from_api(entry)
                     movies[movie.id] = movie
                     values = [movie.id, movie.title, movie.image_url,
                               movie.description, movie.rating, movie.year,
@@ -147,8 +150,8 @@ class Netflix(commands.Cog):
                        year: Keyword = None,
                        rating: Keyword = None,
                        runtime: Keyword = None):
-        possible_movies = []
         await self._lock.wait()
+        possible_movies = []
 
         for movie in self.movies.values():
             if genre and genre not in movie.description:
@@ -180,6 +183,8 @@ class Netflix(commands.Cog):
                           description="returns either movies with similar title then the user input or the movie with given id")
     @app_commands.describe(identifier="the id or title of the movie")
     async def movie_(self, interaction, identifier: str):
+        await self._lock.wait()
+
         if identifier.isnumeric():
             movie = self.movies.get(int(identifier))
 
