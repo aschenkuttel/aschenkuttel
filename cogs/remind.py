@@ -10,7 +10,7 @@ import asyncio
 import discord
 import logging
 import utils
-
+from dateparser.conf import Settings
 logger = logging.getLogger('self')
 
 
@@ -84,7 +84,7 @@ class Reminder(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.type = 2
-        self.settings = {'languages': ['de', 'en'], 'settings': {'PREFER_DATES_FROM': "future"}}
+        self.parse_arguments = {'languages': ['de', 'en'], 'settings': {'PREFER_DATES_FROM': "future"}}
         self.preset = "%d.%m.%Y | %H:%M:%S"
         self._task = self.bot.loop.create_task(self.remind_loop())
         self._task.add_done_callback(self.loop_error_handler)
@@ -161,8 +161,10 @@ class Reminder(commands.Cog):
             return
 
         try:
-            expected_date = dateparser.parse(raw_time, **self.settings)
-            expected_date = expected_date.astimezone(zone)
+            user_settings = self.parse_arguments.copy()
+            user_settings['settings']['TIMEZONE'] = user_zone or "Europe/Berlin"
+            user_settings['settings']['TO_TIMEZONE'] = "UTC"
+            expected_date = dateparser.parse(raw_time, **user_settings)
 
         except Exception as error:
             logger.debug(error)
@@ -174,7 +176,7 @@ class Reminder(commands.Cog):
             return
 
         now = datetime.utcnow().replace(tzinfo=None)
-        when = expected_date.astimezone(timezone.utc).replace(tzinfo=None)
+        when = expected_date.replace(tzinfo=None)
         difference = (when - now).total_seconds()
 
         if difference < 0:
@@ -184,6 +186,8 @@ class Reminder(commands.Cog):
 
         embed = discord.Embed(colour=discord.Color.green())
         embed.description = "**Reminder registered:**"
+        expected_date = expected_date.replace(tzinfo=timezone.utc)
+        expected_date = expected_date.astimezone(zone)
         represent = expected_date.strftime(self.preset)
         represent += f" ({self.timezone_to_offset(zone)})"
         embed.set_footer(text=represent)
@@ -356,8 +360,9 @@ class Reminder(commands.Cog):
         tz = await self.get_timezone(user.id)
 
         if tz is None:
-            msg = f'{user} has not set their timezone. (Default: Europe/Berlin)'
-            await interaction.response.send_message(msg)
+            msg = f'{user.mention} has not set their timezone. (Default: Europe/Berlin)'
+            no_ping = discord.AllowedMentions(users=False)
+            await interaction.response.send_message(msg, allowed_mentions=no_ping)
             return
 
         now = datetime.now(dateutil.tz.gettz(tz))
