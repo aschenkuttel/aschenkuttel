@@ -43,6 +43,24 @@ class Summoner:
     def __str__(self):
         return self.name
 
+    @classmethod
+    def from_api(cls, user_id, api_record):
+        return cls({
+            'user_id': user_id,
+            'id': api_record['id'],
+            'account_id': api_record['accountId'],
+            'puuid': api_record['puuid'],
+            'name': api_record['name'],
+            'icon_id': api_record['profileIconId'],
+            'level': api_record['summonerLevel'],
+            'wins': api_record.get('wins', 0),
+            'losses': api_record.get('losses', 0),
+            'tier': api_record.get('tier'),
+            'rank': api_record.get('rank'),
+            'lp': api_record.get('leaguePoints', 0),
+            'last_match_id': api_record.get('last_match_id')
+        })
+
     @property
     def icon_url(self):
         return f"http://ddragon.leagueoflegends.com/cdn/13.9.1/img/profileicon/{self.icon_id}.png"
@@ -83,6 +101,23 @@ class Summoner:
         if self._attempts > 4:
             return True
 
+    @property
+    def arguments(self):
+        return (
+            self.user_id,
+            self.id,
+            self.account_id,
+            self.puuid,
+            self.name,
+            self.icon_id,
+            self.level,
+            self.wins,
+            self.losses,
+            self.tier,
+            self.rank,
+            self.lp,
+            self.last_match_id
+        )
 
 class Match:
     valid_queue_ids = (
@@ -171,12 +206,12 @@ class League(commands.Cog):
     europe_base_url = "https://europe.api.riotgames.com/lol"
     champion_icon_url = "http://ddragon.leagueoflegends.com/cdn/13.9.1/img/champion/"
 
-    query = ('INSERT INTO summoner (user_id, account_id, puuid,'
+    query = ('INSERT INTO summoner (user_id, id, account_id, puuid,'
              'name, icon_id, level, wins, losses, tier, rank, lp, last_match_id) '
              'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) '
              'ON CONFLICT (user_id) DO UPDATE SET id=$2, account_id=$3, '
-            'puuid=$4, name=$5, icon_id=$6, level=$7, wins=$8, '
-            'losses=$9, tier=$10, rank=$11, lp=$12, last_match_id=$13')
+             'puuid=$4, name=$5, icon_id=$6, level=$7, wins=$8, '
+             'losses=$9, tier=$10, rank=$11, lp=$12, last_match_id=$13')
 
     # we have to use this monstrosity since sqlite3 on ubuntu doesnt support
     # on conflict update, don't ask me why
@@ -289,10 +324,9 @@ class League(commands.Cog):
                 else:
                     summoners[user_id] = summoner
             else:
-                arguments = self.parse_arguments(user_id, data)
-                new_summoner_obj = Summoner(arguments)
+                new_summoner_obj = Summoner.from_api(user_id, data)
                 summoners[user_id] = new_summoner_obj
-                batch.append(arguments)
+                batch.append(new_summoner_obj.arguments)
 
             await asyncio.sleep(.1)
 
@@ -383,7 +417,7 @@ class League(commands.Cog):
                         if summoner.last_match_id is None:
                             logger.debug(f"League: {member.id} has no last match")
                             continue
-                        
+
                         match_data = await self.fetch_match(summoner.last_match_id)
 
                         if match_data is None:
@@ -436,11 +470,9 @@ class League(commands.Cog):
             return summoner
 
     async def save_summoner(self, user_id, data):
-        arguments = self.parse_arguments(user_id, data)
-        await self.bot.execute(self.query, *arguments)
-
-        new_summoner = Summoner(arguments)
+        new_summoner = Summoner.from_api(user_id, data)
         self.summoner[user_id] = new_summoner
+        await self.bot.execute(self.query, *new_summoner.arguments)
         return new_summoner
 
     async def fetch(self, url) -> Union[list, dict]:
@@ -521,23 +553,23 @@ class League(commands.Cog):
 
         return data
 
-    @staticmethod
-    def parse_arguments(user_id, data):
-        return [
-            user_id,
-            data['id'],
-            data['accountId'],
-            data['puuid'],
-            data['name'],
-            data['profileIconId'],
-            data['summonerLevel'],
-            data.get('wins', 0),
-            data.get('losses', 0),
-            data.get('tier'),
-            data.get('rank'),
-            data.get('leaguePoints', 0),
-            data.get('last_match_id')
-        ]
+    # @staticmethod
+    # def parse_arguments(user_id, data):
+    #     return [
+    #         user_id,
+    #         data['id'],
+    #         data['accountId'],
+    #         data['puuid'],
+    #         data['name'],
+    #         data['profileIconId'],
+    #         data['summonerLevel'],
+    #         data.get('wins', 0),
+    #         data.get('losses', 0),
+    #         data.get('tier'),
+    #         data.get('rank'),
+    #         data.get('leaguePoints', 0),
+    #         data.get('last_match_id')
+    #     ]
 
     league = app_commands.Group(name="league", description="commands for league of legends")
 
@@ -561,7 +593,7 @@ class League(commands.Cog):
         await interaction.response.send_message(msg)
 
     @league.command(name="check",
-                          description="checks if a summoner name is already used or free (only checks for availability)")
+                    description="checks if a summoner name is already used or free (only checks for availability)")
     @app_commands.describe(username="the summoner name you want to check")
     async def check_(self, interaction, username: str):
         try:
@@ -576,7 +608,8 @@ class League(commands.Cog):
         msg = f"`{username}` is {adj}"
         await interaction.response.send_message(msg)
 
-    @app_commands.command(name="summoner", description="gives some basic information about your or someone's connected summoner")
+    @app_commands.command(name="summoner",
+                          description="gives some basic information about your or someone's connected summoner")
     @app_commands.describe(member="the member you want to get information about (optional)")
     async def summoner_(self, interaction, member: discord.Member = None):
         summoner = self.get_summoner_by_member(member or interaction.user)
@@ -587,10 +620,8 @@ class League(commands.Cog):
     async def summoner_gg_(self, interaction, summoner_name: str):
         base_data = await self.fetch_summoner_basic(summoner_name)
         summoner_data = await self.fetch_summoner(base_data)
-        arguments = self.parse_arguments(None, summoner_data)
-        summoner = Summoner(arguments)
+        summoner = Summoner.from_api(None, summoner_data)
         await self.display_summoner(interaction, summoner)
-
 
     async def display_summoner(self, interaction, summoner):
         title = f"{summoner.name} (LV {summoner.level})"
@@ -605,20 +636,19 @@ class League(commands.Cog):
         embed.description = "\n".join(parts)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="mastery", description="gives the top 5 champion masteries of your or someone's connected summoner")
+    @app_commands.command(name="mastery",
+                          description="gives the top 5 champion masteries of your or someone's connected summoner")
     @app_commands.describe(member="the member you want to get information about (optional)")
     async def mastery_(self, interaction, member: discord.Member = None):
         summoner = self.get_summoner_by_member(member or interaction.user)
         await self.display_mastery(interaction, summoner)
-
 
     @app_commands.command(name="mastery-gg", description="gives the top 5 champion masteries of any summoner")
     @app_commands.describe(summoner_name="the summoner name you want to get information about")
     async def mastery_gg_(self, interaction, summoner_name: str):
         base_data = await self.fetch_summoner_basic(summoner_name)
         summoner_data = await self.fetch_summoner(base_data)
-        arguments = self.parse_arguments(None, summoner_data)
-        summoner = Summoner(arguments)
+        summoner = Summoner.from_api(None, summoner_data)
         await self.display_mastery(interaction, summoner)
 
     async def display_mastery(self, interaction, summoner):
