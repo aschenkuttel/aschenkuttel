@@ -209,7 +209,7 @@ class League(commands.Cog):
     query = ('INSERT INTO summoner (user_id, id, account_id, puuid,'
              'name, icon_id, level, wins, losses, tier, rank, lp, last_match_id) '
              'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) '
-             'ON CONFLICT (user_id) DO UPDATE SET id=$2, account_id=$3, '
+             'ON CONFLICT (user_id) DO UPDATE SET user_id=user_id, id=$2, account_id=$3, '
              'puuid=$4, name=$5, icon_id=$6, level=$7, wins=$8, '
              'losses=$9, tier=$10, rank=$11, lp=$12, last_match_id=$13')
 
