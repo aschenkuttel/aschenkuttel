@@ -125,7 +125,7 @@ class Birthday(commands.Cog):
         array = ", ".join(query_placeholder)
         # we have to concat but since we know the data origin we can safely do it (as long as we trust discord.py)
         # sql injection: https://owasp.org/www-community/attacks/SQL_Injection
-        query = f'SELECT birthday FROM userdata WHERE birthday IS NOT NULL AND id IN ({array})'
+        query = f'SELECT id, birthday FROM userdata WHERE birthday IS NOT NULL AND id IN ({array})'
         response = await self.bot.fetch(query, *member_ids)
         return [Birthdate(row) for row in response]
 
