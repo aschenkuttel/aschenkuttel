@@ -4,10 +4,13 @@ from discord import app_commands
 from datetime import datetime
 from itertools import cycle
 import dateparser
+import logging
 import discord
 import random
 import utils
 
+
+logger = logging.getLogger('self')
 
 class Birthdate:
     format = "%Y-%m-%d %H:%M:%S"
@@ -62,7 +65,7 @@ class Birthday(commands.Cog):
             "https://media.tenor.com/VMC8fNKdQrcAAAAd/happy-birthday-bon-anniversaire.gif",
             "https://media.tenor.com/ebZ0rVyVysYAAAAC/cake-birthday.gif"
         )
-        # self.birthday_loop.start()
+        self.birthday_loop.start()
 
     def cog_unload(self):
         self.birthday_loop.cancel()
@@ -70,7 +73,7 @@ class Birthday(commands.Cog):
     @tasks.loop(hours=1)
     async def birthday_loop(self):
         await self.bot.wait_until_unlocked()
-        today = datetime.now()
+        today = datetime.utcnow()
 
         if today.hour != 10:
             return
@@ -80,15 +83,17 @@ class Birthday(commands.Cog):
             bday_channel = guild.get_channel(channel_id)
 
             if bday_channel is None:
+                logger.debug(f"no birthday channel found in {guild.name}")
                 continue
 
-            dates = await self.fetch_guild_birthdays(guild.id)
+            dates = await self.fetch_guild_birthdays(guild)
 
             for date in dates:
                 if today.month == date.month and today.day == date.day:
 
                     member = guild.get_member(date.user_id)
                     if member is None:
+                        logger.debug(f"member {date.user_id} has birthday but is not in {guild.name}")
                         continue
 
                     embed = discord.Embed(colour=discord.Colour.dark_gold())
