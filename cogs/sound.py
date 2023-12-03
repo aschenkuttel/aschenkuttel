@@ -220,8 +220,10 @@ class Sounds(commands.Cog):
                 await most_people.connect()
 
             else:
-                member_ids = [m.id for m in after.channel.members]
-                self.cache[guild] = member_ids
+                if after.channel is not None:
+                    member_ids = [m.id for m in after.channel.members]
+                    self.cache[guild] = member_ids
+
                 await vc.move_to(most_people)
 
             logger.debug(f'connected to {most_people}')

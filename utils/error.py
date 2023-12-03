@@ -14,7 +14,7 @@ class NoSummonerLinked(app_commands.CheckFailure):
 
 
 class NoRiotResponse(app_commands.CheckFailure):
-    def __init__(self, ):
+    def __init__(self):
         super().__init__("Riot API not responding")
 
 
