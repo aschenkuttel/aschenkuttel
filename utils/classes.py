@@ -137,6 +137,7 @@ class AshTree(app_commands.CommandTree):
     async def _call(self, interaction: discord.Interaction) -> None:
         await super()._call(utils.Interkuttel(interaction))  # noqa (ignore error)
 
+
 class Row(aiosqlite.Row):
     def get(self, key, default=None):
         try:

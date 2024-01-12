@@ -10,6 +10,7 @@ import discord
 import logging
 import random
 import utils
+import json
 import os
 
 logger = logging.getLogger('self')
@@ -75,9 +76,18 @@ class Summoner:
         if self.tier is None:
             return "Unranked"
         elif self.tier in self.all_tiers[-3:]:
-            return f"{self.tier} {self.lp} LP"
+            return f"{self.tier} - {self.lp} LP"
         else:
             return f"{self.tier} {self.rank}"
+
+    @property
+    def str_rank_lp(self):
+        if self.tier is None:
+            return "Unranked"
+        elif self.tier in self.all_tiers[-3:]:
+            return f"{self.tier} - {self.lp} LP"
+        else:
+            return f"{self.tier} {self.rank} - {self.lp} LP"
 
     @property
     def int_rank(self):
@@ -119,31 +129,64 @@ class Summoner:
             self.last_match_id
         )
 
+
+class Champion:
+    icon_base_uri = "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/"
+
+    def __init__(self, record):
+        self.id = record['id']
+        self.riot_id = record['riot_id']
+        self.name = record['name']
+        self.description = record['description']
+        self.data = json.loads(record['data'])
+        self.image_url = self.data['image']['full']
+
+    @property
+    def icon_url(self):
+        return f"{self.icon_base_uri}{self.image_url}"
+
+    @property
+    def arguments(self):
+        return (
+            self.id,
+            self.riot_id,
+            self.name,
+            self.description,
+            json.dumps(self.data)
+        )
+
+
 class Match:
-    valid_queue_ids = (
-        400,  # 5v5 Draft Pick
+    ranked_queue_ids = (
         420,  # 5v5 Ranked Solo
-        430,  # 5v5 Blind Pick
         440,  # 5v5 Ranked Flex
     )
 
+    normal_queue_ids = (
+        400,  # 5v5 Draft Pick
+        490,  # 5v5 Quick Play
+    )
+
+    valid_queue_ids = ranked_queue_ids + normal_queue_ids
+
+    game_modes = {
+        420: "Solo Queue",
+        440: "Flex Queue",
+        400: "Draft Pick",
+        490: "Quick Play",
+    }
+
     def __init__(self, match, summoner_id):
         self.data = match['info']
+        self.game_id = self.data['gameId']
+        self.queue_id = self.data['queueId']
+        self.game_duration = self.data['gameDuration']
+        self.game_end = self.data['gameEndTimestamp'] / 1000
+
         self.summoner_id = summoner_id
         self.inapplicable = False
         self.player_data = None
         self.champion_id = None
-
-        if (datetime.utcnow().timestamp() - (self.data['gameEndTimestamp'] / 1000)) > 7200:
-            logger.info(f"Match {self.data['gameId']} is too old")
-            self.inapplicable = True
-            return
-
-        if self.data['queueId'] not in self.valid_queue_ids:
-            logger.info(type(self.data['queueId']))
-            logger.info(f"Match {self.data['queueId']} is not a valid queue id")
-            self.inapplicable = True
-            return
 
         participants_dict = {player['summonerId']: player for player in self.data['participants']}
         self.player_data = participants_dict[self.summoner_id]
@@ -156,13 +199,25 @@ class Match:
         self.kills = self.player_data['kills']
         self.deaths = self.player_data['deaths']
         self.assists = self.player_data['assists']
+        self.challenges = self.player_data['challenges']
         self.kd = self.kills / (self.deaths or 1)
-        self.kda = (self.kills + self.assists) / (self.deaths or 1)
+        self.kda = self.challenges['kda']
         self.str_kda = f"{self.kills}/{self.deaths}/{self.assists}"
-
         self.lane = self.player_data['lane']
         self.role = self.player_data['role']
         self.support = self.role == "DUO_SUPPORT"
+
+    @property
+    def played_for(self):
+        return f"{round(self.game_duration / 60)}:{self.game_duration % 60:02d}"
+
+    @property
+    def finished_at(self):
+        return datetime.utcfromtimestamp(self.game_end).strftime("%d.%m.%Y %H:%M")
+
+    @property
+    def type(self):
+        return self.game_modes.get(self.queue_id, self.data['gameMode'].capitalize())
 
     def best_performance(self):
         parts = self.kills + self.assists
@@ -195,6 +250,15 @@ class Match:
     def int(self):
         return self.kda < 0.75 and self.deaths > 7
 
+    def tilt(self):
+        ping_count = 0
+
+        for key in self.player_data:
+            if 'Pings' in key:
+                ping_count += self.player_data[key]
+
+        return ping_count > 64
+
     def special_scenario(self):
         if self.summoner_id == "KenEY1p1tyFRVd4tZnr3YYX5FZxwMEzqeOFrG4C7E_HE6IE":
             if self.data['gameMode'] == "ARAM":
@@ -202,33 +266,21 @@ class Match:
 
 
 class League(commands.Cog):
+    colour = 0x785A28
     euw_base_url = "https://euw1.api.riotgames.com/lol"
     europe_base_url = "https://europe.api.riotgames.com/lol"
-    champion_icon_url = "http://ddragon.leagueoflegends.com/cdn/13.9.1/img/champion/"
 
-    query = ('INSERT INTO summoner (user_id, id, account_id, puuid,'
-             'name, icon_id, level, wins, losses, tier, rank, lp, last_match_id) '
-             'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) '
-             'ON CONFLICT (user_id) DO UPDATE SET user_id=user_id, id=$2, account_id=$3, '
-             'puuid=$4, name=$5, icon_id=$6, level=$7, wins=$8, '
-             'losses=$9, tier=$10, rank=$11, lp=$12, last_match_id=$13')
+    summoner_query = ('INSERT INTO summoner (user_id, id, account_id, puuid, '
+                      'name, icon_id, level, wins, losses, tier, rank, lp, last_match_id) '
+                      'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) '
+                      'ON CONFLICT (user_id) DO UPDATE SET user_id=user_id, id=$2, account_id=$3, '
+                      'puuid=$4, name=$5, icon_id=$6, level=$7, wins=$8, '
+                      'losses=$9, tier=$10, rank=$11, lp=$12, last_match_id=$13')
 
-    # we have to use this monstrosity since sqlite3 on ubuntu doesnt support
-    # on conflict update, don't ask me why
-    # query = 'INSERT OR REPLACE INTO summoner (user_id, id, account_id, puuid, ' \
-    #         'name, icon_id, level, wins, losses, tier, rank, lp, last_match_id) ' \
-    #         'VALUES ($1, $2, $3, $4,' \
-    #         'COALESCE($5, (SELECT name FROM summoner WHERE user_id = $1)),' \
-    #         'COALESCE($6, (SELECT icon_id FROM summoner WHERE user_id = $1)),' \
-    #         'COALESCE($7, (SELECT level FROM summoner WHERE user_id = $1)),' \
-    #         'COALESCE($8, (SELECT wins FROM summoner WHERE user_id = $1)),' \
-    #         'COALESCE($9, (SELECT losses FROM summoner WHERE user_id = $1)),' \
-    #         'COALESCE($10, (SELECT tier FROM summoner WHERE user_id = $1)),' \
-    #         'COALESCE($11, (SELECT rank FROM summoner WHERE user_id = $1)),' \
-    #         'COALESCE($12, (SELECT lp FROM summoner WHERE user_id = $1)),' \
-    #         'COALESCE($13, (SELECT last_match_id FROM summoner WHERE user_id = $1)))'
+    champions_query = ('INSERT INTO champions (id, riot_id, name, description, data) '
+                       'VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO UPDATE SET '
+                       'id=id, riot_id=$2, name=$3, description=$4, data=$5')
 
-    colour = 0x785A28
     messages = {
         'up': [
             "Wie viel hat `{1}` gekostet,\n{0}?",
@@ -240,7 +292,8 @@ class League(commands.Cog):
             "Oha, {0} ist jetzt `{1}`.\nHätte ich ihm niemals zugetraut!",
             "Hey {0}, `{1}`? Haste dafür dein letztes Taschengeld ausgegeben?",
             "Boah, `{1}`! {0}, haste heimlich trainiert?",
-            "Krass, {0} ist jetzt `{1}`. Wer hätte das gedacht?!"
+            "Krass, {0} ist jetzt `{1}`. Wer hätte das gedacht?!",
+            "Hey {0}, `{1}`? Haste dir den Account gekauft?",
         ],
         'down': [
             "Glückwunsch {0},\ndu bist nach `{1}` abgestiegen...",
@@ -286,33 +339,37 @@ class League(commands.Cog):
             "Hey {0}, war das `{1}` Game ein Experiment, um zu sehen, wie weit man sinken kann?",
             "Lieber {0}, war das `{1}` Game ein Tribut an alte Bronze-Zeiten?",
             "Oh je, {0}. Ich hoffe, das `{1}` Game hat nicht zu bleibenden Schäden geführt!"
+        ],
+        'tilt': [
+            "Hey {0}, ich glaube du solltest mal eine Pause machen mit deinen `{1}` Pings.",
+            "`{1}` Pings und es wird noch heißer... {0}, wer hat dir das angetan?",
+            "Wenn ich {1} Pings sehe, weiß ich, dass {0} wieder am Start ist.",
         ]
     }
 
     def __init__(self, bot):
         self.bot = bot
-        self.champion = {}
-        self.summoner = {}
+        self.champions = {}
+        self.summoners = {}
         self._reload_lock = asyncio.Event()
-        self.refresh_champions.start()
         self.engine.start()
 
     def cog_unload(self):
-        self.refresh_champions.cancel()
         self.engine.cancel()
 
     async def load_summoner(self):
         await self.bot.wait_until_unlocked()
         query = 'SELECT * FROM summoner'
         cache = await self.bot.fetch(query)
-        self.summoner = {rec[0]: Summoner(rec) for rec in cache}
+        self.summoners = {rec['user_id']: Summoner(rec) for rec in cache}
+        logger.debug(f"League: {len(self.summoners)} summoners loaded")
         self._reload_lock.set()
 
-    async def refresh_summoner(self):
+    async def refresh_summoners(self):
         summoners = {}
         batch = []
 
-        for user_id, summoner in self.summoner.items():
+        for user_id, summoner in self.summoners.items():
             try:
                 data = await self.fetch_summoner(summoner.account_id, id_=True)
             except utils.SummonerNotFound:
@@ -330,20 +387,41 @@ class League(commands.Cog):
 
             await asyncio.sleep(.1)
 
-        await self.bot.db.executemany(self.query, batch)
+        await self.bot.db.executemany(self.summoner_query, batch)
         await self.bot.db.commit()
         return summoners
 
-    @tasks.loop(hours=24)
-    async def refresh_champions(self):
+    async def load_champions(self):
         await self.bot.wait_until_unlocked()
-        url = "http://ddragon.leagueoflegends.com/cdn/11.3.1/data/en_US/champion.json"
+        query = 'SELECT * FROM champions'
+        cache = await self.bot.fetch(query)
+        self.champions = {rec['id']: Champion(rec) for rec in cache}
+        logger.debug(f"League: {len(self.champions)} champions loaded")
+
+    async def refresh_champions(self):
+        champions = {}
+        batch = []
+
+        url = "http://ddragon.leagueoflegends.com/cdn/14.1.1/data/en_US/champion.json"
         async with self.bot.session.get(url) as resp:
             cache = await resp.json()
 
         for pkg in cache['data'].values():
-            id_ = int(pkg['key'])
-            self.champion[id_] = pkg
+            champion = Champion({
+                'id': int(pkg['key']),
+                'riot_id': pkg['id'],
+                'name': pkg['name'],
+                'description': pkg['blurb'],
+                'data': json.dumps(pkg)
+            })
+
+            champions[champion.id] = champion
+            batch.append(champion.arguments)
+
+        await self.bot.db.executemany(self.champions_query, batch)
+        await self.bot.db.commit()
+        logger.debug(f"League: {len(champions)} champions refreshed")
+        return champions
 
     async def send_embed(self, channel, message, summoner=None, champion_id=None, colour=None):
         if summoner is not None and summoner.tier is not None:
@@ -359,22 +437,28 @@ class League(commands.Cog):
                 logger.error(f"{path} not found")
 
         elif champion_id is not None:
-            icon_name = self.champion[champion_id]['image']['full']
+            champion = self.champions.get(champion_id)
+
+            if champion is None:
+                logger.error(f"{champion_id} not found")
+                return
+
             embed = discord.Embed(description=f"\u200b\n{message}", colour=colour or self.colour)
-            embed.set_thumbnail(url=f"{self.champion_icon_url}{icon_name}")
+            embed.set_thumbnail(url=champion.icon_url)
             await utils.silencer(channel.send(embed=embed))
 
-    @tasks.loop(minutes=15)
+    @tasks.loop(minutes=2)
     async def engine(self):
         logger.debug("League: loop start")
 
         if not self._reload_lock.is_set():
             await self.load_summoner()
-            logger.debug("League: summoners loaded")
+            await self.load_champions()
             return
 
         try:
-            current_summoner = await self.refresh_summoner()
+            self.champions = await self.refresh_champions()
+            current_summoner = await self.refresh_summoners()
         except (utils.NoRiotResponse, aiohttp.ClientConnectorError, asyncio.TimeoutError):
             logger.debug("League Loop: no API response")
             return
@@ -392,7 +476,7 @@ class League(commands.Cog):
                 continue
 
             for member in guild.members:
-                old_summoner = self.summoner.get(member.id)
+                old_summoner = self.summoners.get(member.id)
                 if old_summoner is None:
                     continue
 
@@ -412,7 +496,7 @@ class League(commands.Cog):
                     msg = base.format(name, summoner.str_rank)
                     await self.send_embed(channel, msg, summoner=summoner)
 
-                if old_summoner.last_match_id != summoner.last_match_id:
+                if old_summoner.last_match_id == summoner.last_match_id:
                     try:
                         if summoner.last_match_id is None:
                             logger.debug(f"League: {member.id} has no last match")
@@ -429,8 +513,14 @@ class League(commands.Cog):
                         continue
 
                     match = Match(match_data, summoner.id)
+                    match.tilt()
 
-                    if match.inapplicable:
+                    if (datetime.utcnow().timestamp() - match.game_end) > 7200:
+                        logger.info(f"Match {match.game_id} is too old")
+                        continue
+
+                    if match.queue_id not in Match.valid_queue_ids:
+                        logger.info(f"Match {match.queue_id} is not a valid queue id")
                         continue
 
                     if match.carry():
@@ -445,13 +535,18 @@ class League(commands.Cog):
                         colour = discord.Colour.red()
                         await self.send_embed(channel, msg, champion_id=match.champion_id, colour=colour)
 
+                    elif match.tilt():
+                        base = random.choice(self.messages['tilt'])
+                        msg = base.format(name, match.challenges['ping'])
+                        await self.send_embed(channel, msg, summoner=summoner)
+
                     elif base := match.special_scenario():
                         msg = base.format(name)
                         await self.send_embed(channel, msg, champion_id=match.champion_id)
 
                 await asyncio.sleep(.1)
 
-        self.summoner = current_summoner
+        self.summoners = current_summoner
         logger.debug("League: loop end")
 
     @engine.error
@@ -463,7 +558,7 @@ class League(commands.Cog):
         raise error
 
     def get_summoner_by_member(self, member):
-        summoner = self.summoner.get(member.id)
+        summoner = self.summoners.get(member.id)
         if summoner is None:
             raise utils.NoSummonerLinked(member)
         else:
@@ -471,8 +566,8 @@ class League(commands.Cog):
 
     async def save_summoner(self, user_id, data):
         new_summoner = Summoner.from_api(user_id, data)
-        self.summoner[user_id] = new_summoner
-        await self.bot.execute(self.query, *new_summoner.arguments)
+        self.summoners[user_id] = new_summoner
+        await self.bot.execute(self.summoner_query, *new_summoner.arguments)
         return new_summoner
 
     async def fetch(self, url) -> Union[list, dict]:
@@ -532,8 +627,8 @@ class League(commands.Cog):
         url = f"{self.europe_base_url}/match/v5/matches/{match_id}"
         return await self.fetch(url)
 
-    async def fetch_masteries(self, id_):
-        url = f"{self.euw_base_url}/champion-mastery/v4/champion-masteries/by-summoner/{id_}"
+    async def fetch_masteries(self, puuid):
+        url = f"{self.euw_base_url}/champion-mastery/v4/champion-masteries/by-puuid/{puuid}"
         return await self.fetch(url)
 
     async def fetch_summoner(self, argument, id_=False):
@@ -553,36 +648,18 @@ class League(commands.Cog):
 
         return data
 
-    # @staticmethod
-    # def parse_arguments(user_id, data):
-    #     return [
-    #         user_id,
-    #         data['id'],
-    #         data['accountId'],
-    #         data['puuid'],
-    #         data['name'],
-    #         data['profileIconId'],
-    #         data['summonerLevel'],
-    #         data.get('wins', 0),
-    #         data.get('losses', 0),
-    #         data.get('tier'),
-    #         data.get('rank'),
-    #         data.get('leaguePoints', 0),
-    #         data.get('last_match_id')
-    #     ]
-
     league = app_commands.Group(name="league", description="commands for league of legends")
 
     @league.command(name="set", description="sets your connected summoner")
     @app_commands.describe(summoner_name="your summoner name")
     async def set_(self, interaction, summoner_name: str):
         data = await self.fetch_summoner_basic(summoner_name)
-        old_summoner = self.summoner.get(interaction.user.id)
+        old_summoner = self.summoners.get(interaction.user.id)
 
         if old_summoner and old_summoner.id == data['id']:
             msg = f"`{old_summoner}` is already your connected summoner"
 
-        elif data['id'] in self.summoner:
+        elif data['id'] in self.summoners:
             msg = f"`{data['name']} is already someones connected summoner`"
 
         else:
@@ -610,20 +687,16 @@ class League(commands.Cog):
 
     @app_commands.command(name="summoner",
                           description="gives some basic information about your or someone's connected summoner")
-    @app_commands.describe(member="the member you want to get information about (optional)")
-    async def summoner_(self, interaction, member: discord.Member = None):
-        summoner = self.get_summoner_by_member(member or interaction.user)
-        await self.display_summoner(interaction, summoner)
+    @app_commands.describe(member="the member you want to get information about (optional)",
+                           summoner="the summoner name you want to get information about (optional)")
+    async def summoner_(self, interaction, member: discord.Member = None, summoner: str = None):
+        if summoner is not None:
+            base_data = await self.fetch_summoner_basic(summoner)
+            summoner_data = await self.fetch_summoner(base_data)
+            summoner = Summoner.from_api(None, summoner_data)
+        else:
+            summoner = self.get_summoner_by_member(member or interaction.user)
 
-    @app_commands.command(name="summoner-gg", description="gives you some basic information about any summoner")
-    @app_commands.describe(summoner_name="the summoner name you want to get information about")
-    async def summoner_gg_(self, interaction, summoner_name: str):
-        base_data = await self.fetch_summoner_basic(summoner_name)
-        summoner_data = await self.fetch_summoner(base_data)
-        summoner = Summoner.from_api(None, summoner_data)
-        await self.display_summoner(interaction, summoner)
-
-    async def display_summoner(self, interaction, summoner):
         title = f"{summoner.name} (LV {summoner.level})"
         embed = discord.Embed(title=title, url=summoner.op_gg, colour=self.colour)
         embed.set_thumbnail(url=summoner.icon_url)
@@ -638,23 +711,19 @@ class League(commands.Cog):
 
     @app_commands.command(name="mastery",
                           description="gives the top 5 champion masteries of your or someone's connected summoner")
-    @app_commands.describe(member="the member you want to get information about (optional)")
-    async def mastery_(self, interaction, member: discord.Member = None):
-        summoner = self.get_summoner_by_member(member or interaction.user)
-        await self.display_mastery(interaction, summoner)
+    @app_commands.describe(member="the member you want to get information about (optional)",
+                           summoner="the summoner name you want to get information about (optional)")
+    async def mastery_(self, interaction, member: discord.Member = None, summoner: str = None):
+        if summoner is not None:
+            base_data = await self.fetch_summoner_basic(summoner)
+            summoner_data = await self.fetch_summoner(base_data)
+            summoner = Summoner.from_api(None, summoner_data)
+        else:
+            summoner = self.get_summoner_by_member(member or interaction.user)
 
-    @app_commands.command(name="mastery-gg", description="gives the top 5 champion masteries of any summoner")
-    @app_commands.describe(summoner_name="the summoner name you want to get information about")
-    async def mastery_gg_(self, interaction, summoner_name: str):
-        base_data = await self.fetch_summoner_basic(summoner_name)
-        summoner_data = await self.fetch_summoner(base_data)
-        summoner = Summoner.from_api(None, summoner_data)
-        await self.display_mastery(interaction, summoner)
-
-    async def display_mastery(self, interaction, summoner):
-        masteries = await self.fetch_masteries(summoner.id)
+        masteries = await self.fetch_masteries(summoner.puuid)
         title = f"{summoner.name} (LV {summoner.level})"
-        embed = discord.Embed(title=title, colour=self.colour)
+        embed = discord.Embed(title=title, url=summoner.op_gg, colour=self.colour)
         embed.set_thumbnail(url=summoner.icon_url)
 
         if masteries is None:
@@ -662,13 +731,68 @@ class League(commands.Cog):
         else:
             parts = []
             for mastery in masteries[:5]:
-                champion = self.champion[mastery['championId']]
-                champion_name = champion['name'] if champion else "Unknown"
+                champion = self.champions.get(mastery['championId'])
+                champion_name = champion.name if champion else "Unknown"
                 champion_points = f"{mastery['championPoints']:,}".replace(",", ".")
-                parts.append(f"`{champion_points}` **{champion_name}**")
+                parts.append(f"`{champion_points}` - **{champion_name}**")
 
             embed.description = "\n".join(parts)
 
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="last_match", description="gives the last match of your or someone's connected summoner")
+    @app_commands.describe(member="the member you want to get information about (optional)",
+                           summoner="the summoner name you want to get information about (optional)")
+    async def last_match_(self, interaction, member: discord.Member = None, summoner: str = None):
+        if summoner is not None:
+            base_data = await self.fetch_summoner_basic(summoner)
+            summoner_data = await self.fetch_summoner(base_data)
+            summoner = Summoner.from_api(None, summoner_data)
+        else:
+            summoner = self.get_summoner_by_member(member or interaction.user)
+
+        match_data = await self.fetch_match(summoner.last_match_id)
+        match = Match(match_data, summoner.id)
+        champion = self.champions.get(match.champion_id)
+
+        title = f"{summoner.name} (LV {summoner.level})"
+        embed = discord.Embed(title=title, url=summoner.op_gg, colour=self.colour)
+        embed.set_thumbnail(url=champion.icon_url)
+
+        if match_data is None:
+            embed.description = "No match data found"
+        else:
+            parts = [
+                f"**Mode:** {match.type}",
+                f"**Lane:** {match.lane.capitalize()}",
+                f"**Champion:** {champion.name if champion else 'Unknown'}",
+                f"**Duration:** {match.played_for}",
+                f"**KDA:** {match.str_kda}",
+                f"**CS:** {match.player_data['totalMinionsKilled']}",
+            ]
+
+            embed.description = "\n".join(parts)
+
+        embed.set_footer(text=f"Played at {match.finished_at}")
+
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="ranking", description="shows the top 10 ranked players on the server")
+    async def ranking_(self, interaction):
+        query = 'SELECT * FROM summoner ORDER BY lp DESC LIMIT 10'
+        cache = await self.bot.fetch(query)
+        embed = discord.Embed(title=f"Top 10 of {interaction.guild.name}", colour=self.colour)
+
+        lines = []
+
+        for index, record in enumerate(cache):
+            summoner = Summoner(record)
+            member = interaction.guild.get_member(summoner.user_id)
+
+            content = f"[{member.display_name if member else 'Unknown'}]({summoner.op_gg})"
+            lines.append(f"`{index + 1}.` {content}\n{summoner.str_rank_lp}")
+
+        embed.description = "\n".join(lines)
         await interaction.response.send_message(embed=embed)
 
 

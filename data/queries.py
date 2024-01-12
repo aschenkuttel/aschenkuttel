@@ -30,6 +30,12 @@ losses SMALLINT, tier TEXT, rank TEXT,
 lp SMALLINT, last_match_id BIGINT)
 '''
 
+champions = '''
+CREATE TABLE IF NOT EXISTS champions (
+id INT PRIMARY KEY, riot_id TEXT, name TEXT,
+description TEXT, data JSON)
+'''
+
 parties = '''
 CREATE TABLE IF NOT EXISTS watch_parties (
 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,4 +51,4 @@ id BIGINT PRIMARY KEY, birthday TIMESTAMP,
 timezone TEXT)
 '''
 
-queries = (reminder, starboard, movies, summoner, parties, user_data)
+queries = (reminder, starboard, movies, summoner, champions, parties, user_data)

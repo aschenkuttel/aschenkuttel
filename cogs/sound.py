@@ -144,7 +144,7 @@ class Sounds(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        print("Joining voice channels...")
+        logger.debug("Joining voice channels...")
 
         for guild in self.bot.guilds:
             vc = guild.voice_client
