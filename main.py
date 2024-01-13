@@ -22,6 +22,7 @@ class Aschenkuttel(commands.Bot):
 
         self.config = utils.ConfigHandler(self)
         self._lock = None
+        self.logger = None
         self.session = None
         self.db = None
 
@@ -104,6 +105,9 @@ class Aschenkuttel(commands.Bot):
             format_str = '%(asctime)s:%(levelname)s:%(name)s: %(message)s'
             handler.setFormatter(logging.Formatter(format_str))
             logger.addHandler(handler)
+
+            if name == 'self':
+                self.logger = logger
 
     async def setup_cogs(self):
         for file in os.listdir(f"{self.path}/cogs"):

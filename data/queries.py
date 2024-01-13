@@ -27,7 +27,7 @@ user_id BIGINT PRIMARY KEY, id TEXT,
 account_id TEXT, puuid TEXT, name TEXT,
 icon_id INT, level SMALLINT, wins SMALLINT,
 losses SMALLINT, tier TEXT, rank TEXT,
-lp SMALLINT, last_match_id BIGINT)
+lp SMALLINT, mmr SMALLINT, last_match_id BIGINT)
 '''
 
 champions = '''

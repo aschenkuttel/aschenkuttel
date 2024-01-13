@@ -107,15 +107,6 @@ class _Keyword:
         return bool(self.value)
 
 
-class Member(commands.Converter):
-    async def convert(self, ctx, argument):
-        member = utils.get_member_by_name(ctx, argument)
-        if member is None:
-            raise commands.MemberNotFound(argument)
-        else:
-            return member
-
-
 class AshTree(app_commands.CommandTree):
     async def interaction_check(self, interaction):
         if interaction.type != discord.InteractionType.application_command:

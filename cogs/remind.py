@@ -10,7 +10,7 @@ import asyncio
 import discord
 import logging
 import utils
-from dateparser.conf import Settings
+
 logger = logging.getLogger('self')
 
 

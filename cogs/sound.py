@@ -32,16 +32,22 @@ class EditTimespan(discord.ui.Modal, title='Edit Timespan'):
         try:
             difference = float(self.end.value) - float(self.begin.value)
         except ValueError:
-            await interaction.followup.send('input must be a number', ephemeral=True, delete_after=5)
-            return
+            return await interaction.response.send_message(
+                'input must be a number',
+                ephemeral=True, delete_after=5
+            )
 
         if difference < 2:
-            await interaction.followup.send("join-sound can't be shorter than 1 second", ephemeral=True, delete_after=5)
-            return
+            return await interaction.response.send_message(
+                "join-sound can't be shorter than 2 seconds",
+                ephemeral=True, delete_after=5
+            )
 
         elif difference > 5:
-            await interaction.followup.send("join-sound can't be longer than 5 seconds", ephemeral=True, delete_after=5)
-            return
+            return await interaction.response.send_message(
+                "join-sound can't be longer than 5 seconds",
+                ephemeral=True, delete_after=5
+            )
 
         self.view.begin = float(self.begin.value)
         self.view.end = float(self.end.value)
@@ -61,7 +67,6 @@ class EditTimespan(discord.ui.Modal, title='Edit Timespan'):
         await message.edit(attachments=[self.view.file], view=self.view)
 
     async def on_error(self, interaction, error: Exception) -> None:
-        raise error
         logger.debug(f'Error with {interaction.data}: {error}')
         await interaction.followup.send('Oops! Something went wrong.', ephemeral=True)
 
@@ -254,7 +259,11 @@ class Sounds(commands.Cog):
 
     @staticmethod
     def download_youtube(url):
-        video = YouTube(url)
+        try:
+            video = YouTube(url)
+        except Exception as error:
+            logger.debug(f"pytube error: {error}")
+            raise utils.YoutubeVideoNotFound()
 
         try:
             file_size = video.streams.get_audio_only().filesize_mb
@@ -293,7 +302,7 @@ class Sounds(commands.Cog):
 
     @join_sound.command(name="youtube", description="sets your join-sound with a youtube video")
     @app_commands.describe(youtube_url="the youtube url of the sound you want to use")
-    async def join_sound_edit(self, interaction, youtube_url: str):
+    async def join_sound_youtube(self, interaction, youtube_url: str):
         await interaction.response.defer(ephemeral=interaction.guild is not None)
 
         func = functools.partial(self.download_youtube, youtube_url)

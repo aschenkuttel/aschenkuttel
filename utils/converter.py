@@ -1,6 +1,7 @@
 from discord import app_commands
 from .classes import _Keyword
 import zoneinfo
+import utils
 
 config_options = [
     app_commands.Choice(name="lobby", value="lobby"),
@@ -31,3 +32,30 @@ class TimeZone(app_commands.Transformer):
 
     async def transform(self, interaction, value):
         return zoneinfo.ZoneInfo(value)
+
+
+class SummonerArg(app_commands.Transformer):
+    __slots__ = ('key',)
+
+    def __init__(self, shallow=False):
+        self.shallow = shallow
+
+    async def transform(self, interaction, value):
+        if '#' not in value:
+            raise utils.InvalidSummonerName(value)
+
+        league = interaction.client.get_cog('League')
+
+        if league is None:
+            interaction.client.logger.error("league cog not loaded")
+            raise utils.NoRiotResponse()
+
+        name, tag = value.split('#')
+        name, tag = name.strip(), tag.strip()
+
+        print(self.shallow)
+
+        if self.shallow:
+            return await league.fetch_riot_acc_by_rid(name, tag)
+        else:
+            return await league.fetch_summoner_by_rid(name, tag)

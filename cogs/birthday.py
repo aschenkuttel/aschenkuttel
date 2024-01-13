@@ -9,8 +9,8 @@ import discord
 import random
 import utils
 
-
 logger = logging.getLogger('self')
+
 
 class Birthdate:
     format = "%Y-%m-%d %H:%M:%S"

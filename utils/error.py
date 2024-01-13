@@ -1,10 +1,16 @@
 from discord import app_commands
 
 
+class InvalidSummonerName(app_commands.CheckFailure):
+    def __init__(self, arg):
+        self.arg = arg
+        super().__init__(f"summoner name must be in the format `name#tag`")
+
+
 class SummonerNotFound(app_commands.CheckFailure):
     def __init__(self, arg):
         self.arg = arg
-        super().__init__(f"summoner {self.arg} not found")
+        super().__init__(f"summoner `{self.arg}` not found")
 
 
 class NoSummonerLinked(app_commands.CheckFailure):
@@ -34,6 +40,7 @@ class YoutubeVideoTooBig(app_commands.CheckFailure):
 
 
 all_errors = (
+    InvalidSummonerName,
     SummonerNotFound,
     NoSummonerLinked,
     NoRiotResponse,
