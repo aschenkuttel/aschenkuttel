@@ -464,7 +464,7 @@ class League(commands.Cog):
             embed.set_thumbnail(url=champion.icon_url)
             await utils.silencer(channel.send(embed=embed))
 
-    @tasks.loop(minutes=2)
+    @tasks.loop(minutes=10)
     async def engine(self):
         logger.debug("League: loop start")
 
