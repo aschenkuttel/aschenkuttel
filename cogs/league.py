@@ -766,7 +766,7 @@ class League(commands.Cog):
 
     @app_commands.command(name="ranking", description="shows the top 10 ranked players on the server")
     async def ranking_(self, interaction):
-        query = 'SELECT * FROM summoner ORDER BY lp DESC LIMIT 10'
+        query = 'SELECT * FROM summoner ORDER BY mmr DESC LIMIT 10'
         cache = await self.bot.fetch(query)
 
         lines = []
@@ -779,7 +779,8 @@ class League(commands.Cog):
                 continue
 
             content = f"[{member.display_name if member else 'Unknown'}]({summoner.op_gg})"
-            lines.append(f"`{index + 1}.` {content}\n{summoner.str_rank_lp}")
+            line = f"`{len(lines) + 1}.` {content}\n{summoner.str_rank_lp}"
+            lines.append(line)
 
         if not lines:
             await interaction.response.send_message("No ranked players found")
