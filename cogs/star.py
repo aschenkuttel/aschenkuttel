@@ -28,20 +28,18 @@ class Starboard(commands.Cog):
 
         if message.embeds:
             data = message.embeds[0]
-            if data.type == 'image':
+            if data.type == 'image' and data.url:
                 embed.set_image(url=data.url)
-                arguments[6] = data.url
 
         if message.attachments:
             file = message.attachments[0]
-            arguments[6] = file.url
-
-            if file.url.lower().endswith(('png', 'jpeg', 'jpg', 'gif', 'webp')):
+            spoiler = file.is_spoiler()
+            if not spoiler and file.filename.lower().endswith(('png', 'jpeg', 'jpg', 'gif', 'webp')):
                 embed.set_image(url=file.url)
-
+            elif spoiler:
+                embed.add_field(name='Attachment', value=f'||[{file.filename}]({file.url})||', inline=False)
             else:
-                embed.add_field(name='Attachment', inline=False,
-                                value=f'[{file.filename}]({file.url})')
+                embed.add_field(name='Attachment', value=f'[{file.filename}]({file.url})', inline=False)
 
         embed.add_field(name='Original', inline=False,
                         value=f'[Jump Url]({message.jump_url})')

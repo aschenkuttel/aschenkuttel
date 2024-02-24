@@ -304,7 +304,7 @@ class League(commands.Cog):
             "Wie viel hat `{1}` gekostet,\n{0}?",
             "LOL, wieso nur `{1}`?\nClimb mal schneller {0}",
             "Glückwunsch zu `{1}`\n{0}",
-            "{0}\nhat sich`{1}` erkämpft!",
+            "{0}\nhat sich `{1}` erkämpft!",
             "Endlich `{1}`,\ngood job {0}",
             "Wow, `{1}`!\nWell played {0}",
             "Oha, {0} ist jetzt `{1}`.\nHätte ich ihm niemals zugetraut!",
@@ -771,7 +771,7 @@ class League(commands.Cog):
 
         lines = []
 
-        for index, record in enumerate(cache):
+        for record in cache:
             summoner = Summoner(record)
             member = interaction.guild.get_member(summoner.user_id)
 
