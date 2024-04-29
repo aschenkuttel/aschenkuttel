@@ -106,7 +106,7 @@ class Config(commands.Cog):
     @app_commands.command(name="disable", description="disables features like: join/leave sounds or random guild icon")
     @app_commands.choices(feature=utils.config_features)
     @app_commands.checks.has_permissions(administrator=True)
-    async def enable(self, interaction, feature: app_commands.Choice[str]):
+    async def disable(self, interaction, feature: app_commands.Choice[str]):
         await self.toggle(interaction, feature, False)
 
     async def toggle(self, interaction, feature, state):
