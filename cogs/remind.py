@@ -51,10 +51,10 @@ class Timer:
         try:
             msg = f"**Reminder:** {author.mention}"
             await channel.send(msg, embed=embed)
-            logger.debug(f"reminder {self.id}: successfully")
+            logger.debug(f"(REMIND) reminded {self.id} successfully")
 
         except (discord.Forbidden, discord.HTTPException):
-            logger.debug(f"reminder {self.id}: not allowed")
+            logger.debug(f"(REMIND) tried to remind {self.id} but was not allowed")
             return
 
 
@@ -107,7 +107,6 @@ class Reminder(commands.Cog):
         await self.bot.wait_until_ready()
 
         while not self.bot.is_closed():
-
             if not self.current_reminder:
                 query = 'SELECT * FROM reminder ORDER BY expiration'
                 data = await self.bot.fetchone(query)
@@ -116,7 +115,7 @@ class Reminder(commands.Cog):
                     self.current_reminder = Timer(self.bot, data)
 
             if self.current_reminder:
-                logger.debug(f"reminder {self.current_reminder.id}: sleeping")
+                logger.debug(f"(REMIND) waiting for reminder {self.current_reminder.id}")
 
                 difference = (self.current_reminder.expiration - datetime.utcnow())
                 seconds = difference.total_seconds()
@@ -125,14 +124,14 @@ class Reminder(commands.Cog):
                 query = "DELETE FROM reminder WHERE id = $1"
                 await self.bot.execute(query, self.current_reminder.id)
 
-                logger.debug(f"reminder {self.current_reminder.id}: send message")
+                logger.debug(f"(REMIND) sending reminder {self.current_reminder.id}")
                 await self.current_reminder.send()
 
                 self.current_reminder = None
                 self._lock.clear()
 
             else:
-                logger.debug("reminder: waiting")
+                logger.debug("(REMIND) waiting for new reminder")
                 await self._lock.wait()
 
     @staticmethod
@@ -224,7 +223,7 @@ class Reminder(commands.Cog):
                 if reminder.expiration < self.current_reminder.expiration:
                     self.restart(reminder)
 
-            logger.debug(f"reminder {reminder.id}: registered")
+            logger.debug(f"(REMIND) registered reminder {reminder.id}")
             embed.description = f"{embed.description[:-3]} (ID {reminder.id}):**"
             await interaction.response.send_message(embed=embed)
 
@@ -244,7 +243,6 @@ class Reminder(commands.Cog):
             return f'{hours:+03d}:{minutes:02d}'
         else:
             return '+00:00'
-
 
     @app_commands.command(name="remind",
                           description="remind yourself after given time in the channel the command was invoked in")

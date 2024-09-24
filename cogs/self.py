@@ -6,7 +6,7 @@ import logging
 logger = logging.getLogger('self')
 
 
-class Owner(commands.Cog):
+class Self(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.hidden = True
@@ -79,4 +79,4 @@ class Owner(commands.Cog):
 
 
 async def setup(bot):
-    await bot.add_cog(Owner(bot))
+    await bot.add_cog(Self(bot))

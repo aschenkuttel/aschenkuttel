@@ -67,7 +67,7 @@ class EditTimespan(discord.ui.Modal, title='Edit Timespan'):
         await message.edit(attachments=[self.view.file], view=self.view)
 
     async def on_error(self, interaction, error: Exception) -> None:
-        logger.debug(f'Error with {interaction.data}: {error}')
+        logger.debug(f'(SOUND) error with {interaction.data}: {error}')
         await interaction.followup.send('Oops! Something went wrong.', ephemeral=True)
 
 
@@ -149,7 +149,7 @@ class Sounds(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        logger.debug("Joining voice channels...")
+        logger.debug("(SOUND) joining voice channels...")
 
         for guild in self.bot.guilds:
             vc = guild.voice_client
@@ -166,7 +166,7 @@ class Sounds(commands.Cog):
                 else:
                     await most_people.connect()
 
-                logger.debug(f'connected to {most_people}')
+                logger.debug(f'(SOUND) connected to {most_people}')
 
     def get_fullest_channel(self, guild):
         ignored = self.config.get('hidden', guild.id, [])
@@ -214,7 +214,7 @@ class Sounds(commands.Cog):
         most_people = self.get_fullest_channel(guild)
 
         if vc and most_people is None:
-            logger.debug(f'disconnected from {vc.channel}')
+            logger.debug(f'(SOUND) disconnected from {vc.channel}')
             await vc.disconnect(force=True)
             return
 
@@ -231,7 +231,7 @@ class Sounds(commands.Cog):
 
                 await vc.move_to(most_people)
 
-            logger.debug(f'connected to {most_people}')
+            logger.debug(f'(SOUND) connected to {most_people}')
             return
 
         if vc and vc.channel in (before.channel, after.channel):
@@ -252,7 +252,7 @@ class Sounds(commands.Cog):
                 state = 'connect' if after.channel == vc.channel else 'disconnect'
                 sound_path = self.get_sound_path(member.id, state)
 
-                logger.debug(f'playing {state}-sound from {member}')
+                logger.debug(f'(SOUND) playing {state}-sound from {member}')
                 sound = discord.FFmpegPCMAudio(source=sound_path)
                 source = discord.PCMVolumeTransformer(sound, 0.18)
                 vc.play(source=source)
@@ -262,17 +262,17 @@ class Sounds(commands.Cog):
         try:
             video = YouTube(url)
         except Exception as error:
-            logger.debug(f"pytube error: {error}")
+            logger.debug(f"(SOUND) pytube error: {error}")
             raise utils.YoutubeVideoNotFound()
 
         try:
             file_size = video.streams.get_audio_only().filesize_mb
         except Exception as error:
-            logger.debug(f"pytube error: {error}")
+            logger.debug(f"(SOUND) pytube error: {error}")
             raise utils.YoutubeVideoNotFound()
 
         if file_size > 20:
-            logger.debug(f"{url} exceeds 20mb")
+            logger.debug(f"(SOUND) {url} exceeds 20mb")
             raise utils.YoutubeVideoTooBig(file_size)
 
         buffer = io.BytesIO()

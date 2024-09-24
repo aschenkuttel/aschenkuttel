@@ -56,6 +56,9 @@ class Listen(commands.Cog):
 
             msg = "please use slash commands instead: `/example`"
 
+        elif isinstance(error, commands.NoPrivateMessage):
+            msg = "Sorry but this command can't be used in DMs"
+
         if msg:
             await ctx.send(embed=utils.embed(msg, error=True))
             logger.debug(f"expected error with {ctx.message.content}: {error}")

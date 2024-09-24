@@ -23,6 +23,7 @@ class Summoner:
                  "GOLD", "PLATINUM", "EMERALD", "DIAMOND",
                  "MASTER", "GRANDMASTER", "CHALLENGER"]
     all_ranks = ["IV", "III", "II", "I"]
+    refresh_limit = 20
 
     def __init__(self, record):
         self.user_id = record['user_id']
@@ -65,7 +66,8 @@ class Summoner:
             'id': api_record['id'],
             'account_id': api_record['accountId'],
             'puuid': api_record['puuid'],
-            'name': api_record['name'],
+            'name': api_record['gameName'],
+            'tag': api_record['tagLine'],
             'icon_id': api_record['profileIconId'],
             'level': api_record['summonerLevel'],
             'wins': api_record.get('wins', 0),
@@ -369,7 +371,6 @@ class League(commands.Cog):
         self.bot = bot
         self.champions = {}
         self.summoners = {}
-        self._lock = asyncio.Event()
         self.engine.start()
 
     def cog_unload(self):
@@ -380,8 +381,7 @@ class League(commands.Cog):
         query = 'SELECT * FROM summoner'
         cache = await self.bot.fetch(query)
         self.summoners = {rec['user_id']: Summoner(rec) for rec in cache}
-        logger.debug(f"League: {len(self.summoners)} summoners loaded")
-        self._lock.set()
+        logger.debug(f"(LEAGUE) {len(self.summoners)} summoners loaded")
 
     async def refresh_summoners(self):
         summoners = {}
@@ -390,14 +390,20 @@ class League(commands.Cog):
         for user_id, summoner in self.summoners.items():
             try:
                 new_summoner = await self.fetch_summoner_by_puuid(summoner.puuid, user_id)
-            except utils.SummonerNotFound:
+            except Exception as error:
+                if not isinstance(error, utils.NoRiotResponse):
+                    logger.error(f"(LEAGUE) refresh for {summoner.name} failed: {error}")
+
                 resp = summoner.failed_attempt()
 
                 if resp is True:
                     query = 'DELETE FROM summoner WHERE user_id = $1'
                     await self.bot.execute(query, summoner.user_id)
+
+                    logger.debug(f"(LEAGUE) {summoner.name} removed from summoners")
                 else:
                     summoners[user_id] = summoner
+
             else:
                 summoners[user_id] = new_summoner
                 batch.append(new_summoner.arguments)
@@ -413,7 +419,7 @@ class League(commands.Cog):
         query = 'SELECT * FROM champions'
         cache = await self.bot.fetch(query)
         self.champions = {rec['id']: Champion(rec) for rec in cache}
-        logger.debug(f"League: {len(self.champions)} champions loaded")
+        logger.debug(f"(LEAGUE) {len(self.champions)} champions loaded")
 
     async def refresh_champions(self):
         champions = {}
@@ -437,7 +443,7 @@ class League(commands.Cog):
 
         await self.bot.db.executemany(self.champions_query, batch)
         await self.bot.db.commit()
-        logger.debug(f"League: {len(champions)} champions refreshed")
+        logger.debug(f"(LEAGUE) {len(champions)} champions refreshed")
         return champions
 
     async def send_embed(self, channel, message, summoner=None, champion_id=None, colour=None):
@@ -466,13 +472,7 @@ class League(commands.Cog):
 
     @tasks.loop(minutes=10)
     async def engine(self):
-        logger.debug("League: loop start")
-
-        if not self._lock.is_set():
-            await self.load_summoner()
-            await self.load_champions()
-            self.summoners = await self.refresh_summoners()
-            return
+        logger.debug("(LEAGUE) service started")
 
         try:
             self.champions = await self.refresh_champions()
@@ -482,7 +482,7 @@ class League(commands.Cog):
             return
 
         if current_summoners is None:
-            logger.debug("League: no current summoner")
+            logger.debug("(LEAGUE) no current summoner")
             return
 
         for guild in self.bot.guilds:
@@ -490,7 +490,7 @@ class League(commands.Cog):
             channel = guild.get_channel(channel_id)
 
             if channel is None:
-                logger.debug(f"League: {guild.id} has no league channel")
+                logger.debug(f"(LEAGUE) {guild.id} has no league channel")
                 continue
 
             for member in guild.members:
@@ -517,17 +517,17 @@ class League(commands.Cog):
                 if old_summoner.last_match_id != summoner.last_match_id:
                     try:
                         if summoner.last_match_id is None:
-                            logger.debug(f"League: {member.id} has no last match")
+                            logger.debug(f"(LEAGUE) {member.id} has no last match")
                             continue
 
                         match_data = await self.fetch_match(summoner.last_match_id)
 
                         if match_data is None:
-                            logger.debug(f"League: {summoner.last_match_id} is not a valid match")
+                            logger.debug(f"(LEAGUE) {summoner.last_match_id} is not a valid match")
                             continue
 
                     except utils.NoRiotResponse:
-                        logger.debug("League: no API response")
+                        logger.debug("(LEAGUE) no API response")
                         continue
 
                     match = Match(match_data, summoner.id)
@@ -565,14 +565,23 @@ class League(commands.Cog):
                 await asyncio.sleep(.1)
 
         self.summoners = current_summoners
-        logger.debug("League: loop end")
+        logger.debug("(LEAGUE) service finished")
+
+    @engine.before_loop
+    async def before_engine(self):
+        await self.bot.wait_until_unlocked()
+
+        await self.load_summoner()
+        await self.load_champions()
+
+        logger.debug("(LEAGUE) setup complete")
 
     @engine.error
     async def on_engine_error(self, error):
         formatted = "".join(
             traceback.format_exception(type(error), error, error.__traceback__)
         )
-        logger.error(f"League: {formatted}")
+        logger.error(f"(LEAGUE) {formatted}")
         raise error
 
     def get_summoner_by_member(self, member):
@@ -616,19 +625,29 @@ class League(commands.Cog):
         else:
             return response
 
+    async def fetch_riot_acc_by_puuid(self, puuid):
+        try:
+            url = f"{self.europe_base_url}/riot/account/v1/accounts/by-puuid/{puuid}"
+            return await self.fetch(url)
+        except Exception as e:
+            logger.debug(f"Summoner with puuid {puuid} not found ({e})")
+            return None
+
     async def fetch_summoner_by_rid(self, name, tag) -> Summoner:
         data = await self.fetch_riot_acc_by_rid(name, tag)
         return await self.fetch_summoner_by_puuid(data['puuid'])
 
     async def fetch_summoner_by_puuid(self, puuid, user_id=None) -> Summoner:
-        url = f"{self.euw_base_lol_url}/summoner/v4/summoners/by-puuid/{puuid}"
-        data = await self.fetch(url)
+        data = await self.fetch(f"{self.euw_base_lol_url}/summoner/v4/summoners/by-puuid/{puuid}")
+        acc_data = await self.fetch_riot_acc_by_puuid(puuid)
 
-        if data is None:
+        if data is None or acc_data is None:
             raise utils.SummonerNotFound(puuid)
+        else:
+            data.update(acc_data)
 
         rank_data = await self.fetch_league(data['id'])
-        matches = await self.fetch_matches(data['puuid'])
+        matches = await self.fetch_matches(puuid)
 
         if rank_data is not None:
             data.update(rank_data)

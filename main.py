@@ -90,7 +90,7 @@ class Aschenkuttel(commands.Bot):
         if ctx.invoked_with in ("connect", "disconnect"):
             return True
 
-        elif ctx.guild is None:
+        elif ctx.guild is None and ctx.cog.qualified_name != 'Self':
             raise commands.NoPrivateMessage()
 
         else:
@@ -102,7 +102,7 @@ class Aschenkuttel(commands.Bot):
             logger.setLevel(logging.DEBUG)
             handler = logging.FileHandler(filename=f'{self.path}/data/{name}.log',
                                           encoding='utf-8', mode='w')
-            format_str = '%(asctime)s:%(levelname)s:%(name)s: %(message)s'
+            format_str = '%(asctime)s:%(levelname)s: %(message)s'
             handler.setFormatter(logging.Formatter(format_str))
             logger.addHandler(handler)
 
