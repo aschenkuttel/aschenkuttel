@@ -23,6 +23,20 @@ class Summoner:
                  "GOLD", "PLATINUM", "EMERALD", "DIAMOND",
                  "MASTER", "GRANDMASTER", "CHALLENGER"]
     all_ranks = ["IV", "III", "II", "I"]
+
+    tier_colors = {
+        "IRON": 0x5A5A5A,  # Gray
+        "BRONZE": 0xCD7F32,  # Bronze
+        "SILVER": 0xC0C0C0,  # Silver
+        "GOLD": 0xFFD700,  # Gold
+        "PLATINUM": 0xE5E4E2,  # Platinum
+        "EMERALD": 0x50C878,  # Emerald Green
+        "DIAMOND": 0xB9F2FF,  # Diamond Blue
+        "MASTER": 0x800080,  # Purple
+        "GRANDMASTER": 0xFF4500,  # Orange-Red
+        "CHALLENGER": 0x1E90FF  # Dodger Blue
+    }
+
     refresh_limit = 20
 
     def __init__(self, record):
@@ -147,6 +161,9 @@ class Summoner:
             self.last_match_id
         )
 
+    @property
+    def colour(self):
+        return self.tier_colors.get(self.tier, 0x785A28)
 
 class Champion:
     icon_base_uri = "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/"
@@ -310,23 +327,23 @@ class League(commands.Cog):
             "Endlich `{1}`,\ngood job {0}",
             "Wow, `{1}`!\nWell played {0}",
             "Oha, {0} ist jetzt `{1}`.\nHätte ich ihm niemals zugetraut!",
-            "Hey {0}, `{1}`? Haste dafür dein letztes Taschengeld ausgegeben?",
-            "Boah, `{1}`! {0}, haste heimlich trainiert?",
-            "Krass, {0} ist jetzt `{1}`. Wer hätte das gedacht?!",
-            "Hey {0}, `{1}`? Haste dir den Account gekauft?",
+            "Hey {0}, `{1}`?\nHaste dafür dein letztes Taschengeld ausgegeben?",
+            "Boah, `{1}`!\n{0}, haste heimlich trainiert?",
+            "Krass, {0} ist jetzt `{1}`.\nWer hätte das gedacht?!",
+            "Hey {0}, `{1}`?\nHaste dir den Account gekauft?",
         ],
         'down': [
             "Glückwunsch {0},\ndu bist nach `{1}` abgestiegen...",
-            "`{1}`. Good Job {0}\nSind sicher deine Teammates schuld, right?",
+            "`{1}`, Good Job {0}\nSind sicher deine Teammates schuld, right?",
             "{0} ist auf dem Weg nach Iron!\nAktuelle Station: `{1}`",
             "`{1}`.\nDein Ernst {0}? xd",
             "Yo {0},\nhattest du Lags oder wieso `{1}`?",
             "RIP {0}, `{1}` erreicht... Haste den Absturz wenigstens gefilmt?",
-            "`{1}`. GJ {0}, willkommen zurück in der Elo-Hell!",
-            "`{1}`. Echt jetzt, {0}? Haste mit den Füßen gespielt?",
+            "`{1}`, GJ {0}.\nWillkommen zurück in der Elo-Hell!",
+            "`{1}`. Echt jetzt, {0}?\nHaste mit den Füßen gespielt?",
             "Yo {0}, was lief schief, dass du in `{1}` gelandet bist? Account-Sharing?",
-            "{0}, `{1}`... Musst wohl noch paar Tutorials schauen, hm?",
-            "Autsch {0}, `{1}` erreicht. Wann kommt der Comeback-Stream?"
+            "{0}, `{1}`...\nMusst wohl noch paar Tutorials schauen, hm?",
+            "Autsch {0}, `{1}` erreicht.\nWann kommt der Comeback-Stream?"
         ],
         'carry': [
             "Holy shit {0}, hast du gegen Bots gespielt\noder wie kommt `{1}` zusammen?",
@@ -507,12 +524,12 @@ class League(commands.Cog):
                 if old_summoner.int_rank < summoner.int_rank:
                     base = random.choice(self.messages['up'])
                     msg = base.format(name, summoner.str_rank)
-                    await self.send_embed(channel, msg, summoner=summoner)
+                    await self.send_embed(channel, msg, summoner=summoner, colour=summoner.colour)
 
                 elif old_summoner.int_rank > summoner.int_rank:
                     base = random.choice(self.messages['down'])
                     msg = base.format(name, summoner.str_rank)
-                    await self.send_embed(channel, msg, summoner=summoner)
+                    await self.send_embed(channel, msg, summoner=summoner, colour=summoner.colour)
 
                 if old_summoner.last_match_id != summoner.last_match_id:
                     try:
