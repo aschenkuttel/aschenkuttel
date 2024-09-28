@@ -45,6 +45,7 @@ class Summoner:
         self.account_id = record['account_id']
         self.puuid = record['puuid']
         self.name = record['name']
+        self.tag = record['tag']
         self.icon_id = record['icon_id']
         self.level = record['level']
         self.wins = record['wins']
@@ -100,7 +101,7 @@ class Summoner:
     @property
     def op_gg(self):
         name = self.name.replace(" ", "+")
-        return f"https://euw.op.gg/summoner/userName={name}"
+        return f"https://www.op.gg/summoners/euw/{name}-{self.tag}"
 
     @property
     def str_rank(self):
@@ -163,7 +164,12 @@ class Summoner:
 
     @property
     def colour(self):
+        print("fetching colour")
+        print(self.tier)
+        print(self.tier_colors)
+        print(self.tier_colors.get(self.tier))
         return self.tier_colors.get(self.tier, 0x785A28)
+
 
 class Champion:
     icon_base_uri = "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/champion/"
@@ -202,7 +208,7 @@ class Match:
         490,  # 5v5 Quick Play
     )
 
-    valid_queue_ids = ranked_queue_ids + normal_queue_ids
+    valid_queue_ids = ranked_queue_ids  # + normal_queue_ids
 
     game_modes = {
         420: "Solo Queue",
@@ -397,7 +403,12 @@ class League(commands.Cog):
         await self.bot.wait_until_unlocked()
         query = 'SELECT * FROM summoner'
         cache = await self.bot.fetch(query)
-        self.summoners = {rec['user_id']: Summoner(rec) for rec in cache}
+
+        try:
+            self.summoners = {rec['user_id']: Summoner(rec) for rec in cache}
+        except Exception as error:
+            print(f"error in load summoner: {error}")
+
         logger.debug(f"(LEAGUE) {len(self.summoners)} summoners loaded")
 
     async def refresh_summoners(self):
@@ -587,18 +598,17 @@ class League(commands.Cog):
     @engine.before_loop
     async def before_engine(self):
         await self.bot.wait_until_unlocked()
-
         await self.load_summoner()
         await self.load_champions()
-
         logger.debug("(LEAGUE) setup complete")
 
     @engine.error
-    async def on_engine_error(self, error):
+    async def xd(self, error):
         formatted = "".join(
             traceback.format_exception(type(error), error, error.__traceback__)
         )
         logger.error(f"(LEAGUE) {formatted}")
+        print("logger?")
         raise error
 
     def get_summoner_by_member(self, member):
