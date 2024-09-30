@@ -25,16 +25,16 @@ class Summoner:
     all_ranks = ["IV", "III", "II", "I"]
 
     tier_colors = {
-        "IRON": 0x5A5A5A,  # Gray
-        "BRONZE": 0xCD7F32,  # Bronze
-        "SILVER": 0xC0C0C0,  # Silver
-        "GOLD": 0xFFD700,  # Gold
-        "PLATINUM": 0xE5E4E2,  # Platinum
-        "EMERALD": 0x50C878,  # Emerald Green
-        "DIAMOND": 0xB9F2FF,  # Diamond Blue
-        "MASTER": 0x800080,  # Purple
-        "GRANDMASTER": 0xFF4500,  # Orange-Red
-        "CHALLENGER": 0x1E90FF  # Dodger Blue
+        "IRON": 0x372927,
+        "BRONZE": 0xb38575,
+        "SILVER": 0x2c3741,
+        "GOLD": 0xb99462,
+        "PLATINUM": 0x1a3e4a,
+        "EMERALD": 0x104430,
+        "DIAMOND": 0x7faede,
+        "MASTER": 0x4a2355,
+        "GRANDMASTER": 0x52272e,
+        "CHALLENGER": 0x896d40
     }
 
     refresh_limit = 20
@@ -151,6 +151,7 @@ class Summoner:
             self.account_id,
             self.puuid,
             self.name,
+            self.tag,
             self.icon_id,
             self.level,
             self.wins,
@@ -164,10 +165,6 @@ class Summoner:
 
     @property
     def colour(self):
-        print("fetching colour")
-        print(self.tier)
-        print(self.tier_colors)
-        print(self.tier_colors.get(self.tier))
         return self.tier_colors.get(self.tier, 0x785A28)
 
 
@@ -198,6 +195,8 @@ class Champion:
 
 
 class Match:
+    MIN_KILL_PARTICIPATION = 50
+
     ranked_queue_ids = (
         420,  # 5v5 Ranked Solo
         440,  # 5v5 Ranked Flex
@@ -244,6 +243,8 @@ class Match:
         self.kd = self.kills / (self.deaths or 1)
         self.kda = self.challenges['kda']
         self.str_kda = f"{self.kills}/{self.deaths}/{self.assists}"
+        self.kill_participation = round(self.challenges['killParticipation'] * 100)
+        self.team_damage_percentage = self.challenges['teamDamagePercentage']
         self.lane = self.player_data['lane']
         self.role = self.player_data['role']
         self.support = self.role == "DUO_SUPPORT"
@@ -261,32 +262,32 @@ class Match:
         return self.game_modes.get(self.queue_id, self.data['gameMode'].capitalize())
 
     def best_performance(self):
-        parts = self.kills + self.assists
-        team_kills = 0
         kd_s = []
 
         for player in self.data['participants']:
             if player['teamId'] == self.team_data['teamId']:
-                team_kills += player['kills']
                 kd = player['kills'] / (player['deaths'] or 1)
                 kd_s.append(kd)
 
         best_kd = sorted(kd_s, reverse=True)[0]
-        percentage = round(parts / (team_kills or 1) * 100)
-        return self.kd == best_kd and percentage >= 65
+        return self.kd == best_kd and self.kill_participation >= self.MIN_KILL_PARTICIPATION
 
     def carry(self):
         if not self.win:
             return
 
-        if (self.kills >= 10 and self.kd >= 2.5) or (self.kills >= 5 and self.kd >= 4):
+        if not self.support and not self.team_damage_percentage > 0.2:
+            logger.debug(f"Team damage percentage below: {self.team_damage_percentage}")
+            return
+
+        if self.kills >= 10 and self.kd >= 3:  # or (self.kills >= 5 and self.kd >= 4):
             return True
 
         elif self.best_performance():
             return True
 
         elif self.support or self.lane == "JUNGLE":
-            return self.kda > 3.5
+            return self.kda > 4
 
     def int(self):
         return self.kda < 0.75 and self.deaths > 7
@@ -314,11 +315,11 @@ class League(commands.Cog):
     euw_base_lol_url = "https://euw1.api.riotgames.com/lol"
 
     summoner_query = ('INSERT INTO summoner (user_id, id, account_id, puuid, '
-                      'name, icon_id, level, wins, losses, tier, rank, lp, mmr, last_match_id) '
-                      'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) '
+                      'name, tag, icon_id, level, wins, losses, tier, rank, lp, mmr, last_match_id) '
+                      'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) '
                       'ON CONFLICT (user_id) DO UPDATE SET user_id=user_id, id=$2, account_id=$3, '
-                      'puuid=$4, name=$5, icon_id=$6, level=$7, wins=$8, '
-                      'losses=$9, tier=$10, rank=$11, lp=$12, mmr=$13, last_match_id=$14')
+                      'puuid=$4, name=$5, tag=$6, icon_id=$7, level=$8, wins=$9, '
+                      'losses=$10, tier=$11, rank=$12, lp=$13, mmr=$14, last_match_id=$15')
 
     champions_query = ('INSERT INTO champions (id, riot_id, name, description, data) '
                        'VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO UPDATE SET '
@@ -480,7 +481,7 @@ class League(commands.Cog):
 
             if os.path.isfile(path):
                 file = discord.File(path, filename="tier.png")
-                embed = discord.Embed(description=f"\u200b\n{message}", colour=self.colour)
+                embed = discord.Embed(description=f"\u200b\n{message}", colour=colour or self.colour)
                 embed.set_thumbnail(url="attachment://tier.png")
                 await utils.silencer(channel.send(file=file, embed=embed))
                 await asyncio.sleep(2)
@@ -740,7 +741,7 @@ class League(commands.Cog):
             summoner = self.get_summoner_by_member(member or interaction.user)
 
         title = f"{summoner.name} (LV {summoner.level})"
-        embed = discord.Embed(title=title, url=summoner.op_gg, colour=self.colour)
+        embed = discord.Embed(title=title, url=summoner.op_gg, colour=summoner.colour)
         embed.set_thumbnail(url=summoner.icon_url)
         parts = [
             f"**Games played:** {summoner.games}",
@@ -761,7 +762,7 @@ class League(commands.Cog):
 
         masteries = await self.fetch_masteries(summoner.puuid)
         title = f"{summoner.name} (LV {summoner.level})"
-        embed = discord.Embed(title=title, url=summoner.op_gg, colour=self.colour)
+        embed = discord.Embed(title=title, url=summoner.op_gg, colour=summoner.colour)
         embed.set_thumbnail(url=summoner.icon_url)
 
         if masteries is None:

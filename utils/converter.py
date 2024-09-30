@@ -53,8 +53,6 @@ class SummonerArg(app_commands.Transformer):
         name, tag = value.split('#')
         name, tag = name.strip(), tag.strip()
 
-        print(self.shallow)
-
         if self.shallow:
             return await league.fetch_riot_acc_by_rid(name, tag)
         else:

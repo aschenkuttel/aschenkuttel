@@ -19,6 +19,8 @@ class Starboard(commands.Cog):
             pack.append(message_id)
 
     async def star_message(self, message, channel):
+        self.star_cache[message.guild.id].append(message.id)
+
         embed = discord.Embed(description=message.content)
         embed.colour = discord.Color.gold()
 
@@ -34,6 +36,7 @@ class Starboard(commands.Cog):
         if message.attachments:
             file = message.attachments[0]
             spoiler = file.is_spoiler()
+
             if not spoiler and file.filename.lower().endswith(('png', 'jpeg', 'jpg', 'gif', 'webp')):
                 embed.set_image(url=file.url)
             elif spoiler:
@@ -50,7 +53,6 @@ class Starboard(commands.Cog):
         embed.timestamp = message.created_at
         await channel.send(embed=embed)
 
-        self.star_cache[message.guild.id].append(message.id)
         query = 'INSERT INTO starboard (guild_id, channel_id,' \
                 'message_id, author_id, date, content, attachment) ' \
                 'VALUES ($1, $2, $3, $4, $5, $6, $7)'
