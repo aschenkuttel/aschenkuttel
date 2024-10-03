@@ -1,0 +1,70 @@
+{
+  "climbed": [
+    "Wie viel hat `{1}` gekostet,\n{0}?",
+    "LOL, wieso nur `{1}`?\nClimb mal schneller {0}",
+    "Gl\u00fcckwunsch zu `{1}`\n{0}",
+    "{0}\nhat sich `{1}` erk\u00e4mpft!",
+    "Endlich `{1}`,\ngood job {0}",
+    "Wow, `{1}`!\nWell played {0}",
+    "Oha, {0} ist jetzt `{1}`.\nH\u00e4tte ich ihm niemals zugetraut!",
+    "Hey {0}, `{1}`?\nHaste daf\u00fcr dein letztes Taschengeld ausgegeben?",
+    "Boah, `{1}`!\n{0}, haste heimlich trainiert?",
+    "Krass, {0} ist jetzt `{1}`.\nWer h\u00e4tte das gedacht?!",
+    "Hey {0}, `{1}`?\nHaste dir den Account gekauft?"
+  ],
+  "dropped": [
+    "Gl\u00fcckwunsch {0},\ndu bist nach `{1}` abgestiegen...",
+    "`{1}`, Good Job {0}\nSind sicher deine Teammates schuld, right?",
+    "{0} ist auf dem Weg nach Iron!\nAktuelle Station: `{1}`",
+    "`{1}`.\nDein Ernst {0}? xd",
+    "Yo {0},\nhattest du Lags oder wieso `{1}`?",
+    "RIP {0}, `{1}` erreicht... Haste den Absturz wenigstens gefilmt?",
+    "`{1}`, GJ {0}.\nWillkommen zur\u00fcck in der Elo-Hell!",
+    "`{1}`. Echt jetzt, {0}?\nHaste mit den F\u00fc\u00dfen gespielt?",
+    "Yo {0}, was lief schief, dass du in `{1}` gelandet bist? Account-Sharing?",
+    "{0}, `{1}`...\nMusst wohl noch paar Tutorials schauen, hm?",
+    "Autsch {0}, `{1}` erreicht.\nWann kommt der Comeback-Stream?"
+  ],
+  "carried": [
+    "Holy shit {0}, hast du gegen Bots gespielt\noder wie kommt `{1}` zusammen?",
+    "`{1}`,\nwell played, {0}",
+    "`{1}`? NA-Soloqueue,\nright {0} xd",
+    "Yo {0}, wie viel zahlst du deinem\nBooster damit er f\u00fcr dich `{1}` geht?",
+    "Hallo, Herr Doktor? Ja es geht um {0},\n",
+    "er hatte grade ein `{1}` Game und ich glaube sein R\u00fccken ist kaputt.",
+    "LOL {0}? `{1}`?\nCalm down Faker...",
+    "`{1}`! {0} vor,\nnoch ein Tor!",
+    "Wait, {0}.\nDu hast ja doch H\u00e4nde!? `{1}`, Wow!",
+    "Oida `{1}`.\nHoffe dein Team hat dir 50 € gezahlt {0}",
+    "Hey {0}, war das `{1}` Game eine Audition f\u00fcr LCS oder was?",
+    "Schick mir bitte das Video, wie du mit verbundenen Augen `{1}` erreichst, {0}!",
+    "Gz {0}, mit `{1}` hast du gerade die Definition von 'Carry' neu geschrieben!",
+    "Mein lieber {0}, das `{1}` Game war schlichtweg beeindruckend!"
+  ],
+  "inted": [
+    "`{1}`.\nDein fucking Ernst {0}? xd",
+    "\u00e4hm {0}...,\nwillst du deinen Acc nicht mehr oder warum `{1}`?",
+    "`{1}` XDDDDDDDDDDDDDD\nAch cmon {0}, das gibt so save nen Ban :D",
+    "Hey {0}, wen bist du denn in dem Game runtergerannt?\n",
+    "Wer hat nen `{1}`-Inter in seinen Games verdient?",
+    "`{1}`.\nIch lass das mal unkommentiert so stehen, {0}",
+    "Gerade {0}'s Matchhistory gecheckt und sehe `{1}`.\nAHAHAHAHAHAHAHAHAHAHA",
+    "Hallo Riot Support? Es geht um {0}\nJa genau, das `{1}` Game. Danke :)",
+    "{1}? Hey {0}, hoffentlich hast du ein gutes R\u00fcckgaberecht f\u00fcr deine ELO!",
+    "Hallo {0}, wollte fragen, ob du das `{1}` Game als Kunstprojekt siehst?",
+    "{1}, {0}. Mit welcher Hand spielst du normalerweise?",
+    "Hey {0}, war das `{1}` Game ein Experiment, um zu sehen, wie weit man sinken kann?",
+    "Lieber {0}, war das `{1}` Game ein Tribut an alte Bronze-Zeiten?",
+    "Oh je, {0}. Ich hoffe, das `{1}` Game hat nicht zu bleibenden Sch\u00e4den gef\u00fchrt!"
+  ],
+  "tilted": [
+    "Hey {0}, ich glaube du solltest mit\ndeinen `{1}`mal eine Pause machen .",
+    "`{1}` und es wird noch hei\u00dfer...\n{0}, wer hat dir das angetan?",
+    "Wenn ich `{1}` von {0} sehe,\nwei\u00df ich dass er wieder am Start ist."
+  ],
+  "destroyed": [
+    "\u00c4h {0}, willst du uns vielleicht erz\u00e4hlen\nwie du {1} gemacht hast?",
+    "Sure Buddy, {1} von {0}.\nWo sind die Kameras?",
+    "Hast du gerade {1} gemacht?\n{0}, spielt gerade dein \"Bruder\"?"
+  ]
+}

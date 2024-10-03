@@ -195,6 +195,7 @@ class Champion:
 
 class Match:
     MIN_KILL_PARTICIPATION = 50
+    MAX_ACCEPTABLE_PING_AMOUNT = 75
 
     ranked_queue_ids = (
         420,  # 5v5 Ranked Solo
@@ -215,20 +216,20 @@ class Match:
         490: "Quick Play",
     }
 
-    def __init__(self, match, summoner_id):
+    def __init__(self, match, summoner):
         self.data = match['info']
         self.game_id = self.data['gameId']
         self.queue_id = self.data['queueId']
         self.game_duration = self.data['gameDuration']
         self.game_end = self.data['gameEndTimestamp'] / 1000
 
-        self.summoner_id = summoner_id
+        self.summoner = summoner
         self.inapplicable = False
         self.player_data = None
         self.champion_id = None
 
         participants_dict = {player['summonerId']: player for player in self.data['participants']}
-        self.player_data = participants_dict[self.summoner_id]
+        self.player_data = participants_dict[self.summoner.id]
         self.champion_id = self.player_data['championId']
 
         team_dict = {team['teamId']: team for team in self.data['teams']}
@@ -248,6 +249,19 @@ class Match:
         self.lane = self.player_data['lane']
         self.role = self.player_data['role']
         self.support = self.role == "DUO_SUPPORT"
+
+        self.pinged_most = {}
+        self.times_pinged = 90
+
+        for key in self.player_data:
+            if 'Pings' in key:
+                self.times_pinged += self.player_data[key]
+
+                if self.player_data[key] > self.pinged_most.get('times', 0):
+                    self.pinged_most = {'times': self.player_data[key], 'type': key}
+
+        self.pentas = self.player_data.get('pentaKills', 0)
+        self.quadras = self.player_data.get('quadraKills', 0)
 
     @property
     def played_for(self):
@@ -272,7 +286,7 @@ class Match:
         best_kd = sorted(kd_s, reverse=True)[0]
         return self.kd == best_kd and self.kill_participation >= self.MIN_KILL_PARTICIPATION
 
-    def carry(self):
+    def carried(self):
         if not self.win:
             return
 
@@ -290,22 +304,27 @@ class Match:
         elif self.support or self.lane == "JUNGLE":
             return self.kda > 4
 
-    def int(self):
+    def inted(self):
         return self.kda < 0.75 and self.deaths > 7
 
-    def tilt(self):
-        ping_count = 0
+    def tilted(self):
+        return self.times_pinged > self.MAX_ACCEPTABLE_PING_AMOUNT
 
-        for key in self.player_data:
-            if 'Pings' in key:
-                ping_count += self.player_data[key]
-
-        return ping_count > 99
-
-    def special_scenario(self):
-        if self.summoner_id == "KenEY1p1tyFRVd4tZnr3YYX5FZxwMEzqeOFrG4C7E_HE6IE":
+    def special_scenario(self, messages, name):
+        #  tobi spielt aram
+        if self.summoner.id == "KenEY1p1tyFRVd4tZnr3YYX5FZxwMEzqeOFrG4C7E_HE6IE":
             if self.data['gameMode'] == "ARAM":
-                return "{} spielt fucking ARAM? WTF!"
+                return f"{name} spielt fucking ARAM? WTF!"
+
+        elif self.quadras > 1 or self.pentas > 0:
+            base = random.choice(messages['destroyed'])
+
+            if self.pentas > 1:
+                action = "`einen Penta`" if self.pentas == 1 else f"`{self.pentas} fucking Pentas`"
+                return base.format(name, action)
+            else:
+                action = f"`{self.quadras} Quadras`"
+                return base.format(name, action)
 
 
 class League(commands.Cog):
@@ -326,77 +345,14 @@ class League(commands.Cog):
                        'VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO UPDATE SET '
                        'id=id, riot_id=$2, name=$3, description=$4, data=$5')
 
-    messages = {
-        'up': [
-            "Wie viel hat `{1}` gekostet,\n{0}?",
-            "LOL, wieso nur `{1}`?\nClimb mal schneller {0}",
-            "Glückwunsch zu `{1}`\n{0}",
-            "{0}\nhat sich `{1}` erkämpft!",
-            "Endlich `{1}`,\ngood job {0}",
-            "Wow, `{1}`!\nWell played {0}",
-            "Oha, {0} ist jetzt `{1}`.\nHätte ich ihm niemals zugetraut!",
-            "Hey {0}, `{1}`?\nHaste dafür dein letztes Taschengeld ausgegeben?",
-            "Boah, `{1}`!\n{0}, haste heimlich trainiert?",
-            "Krass, {0} ist jetzt `{1}`.\nWer hätte das gedacht?!",
-            "Hey {0}, `{1}`?\nHaste dir den Account gekauft?",
-        ],
-        'down': [
-            "Glückwunsch {0},\ndu bist nach `{1}` abgestiegen...",
-            "`{1}`, Good Job {0}\nSind sicher deine Teammates schuld, right?",
-            "{0} ist auf dem Weg nach Iron!\nAktuelle Station: `{1}`",
-            "`{1}`.\nDein Ernst {0}? xd",
-            "Yo {0},\nhattest du Lags oder wieso `{1}`?",
-            "RIP {0}, `{1}` erreicht... Haste den Absturz wenigstens gefilmt?",
-            "`{1}`, GJ {0}.\nWillkommen zurück in der Elo-Hell!",
-            "`{1}`. Echt jetzt, {0}?\nHaste mit den Füßen gespielt?",
-            "Yo {0}, was lief schief, dass du in `{1}` gelandet bist? Account-Sharing?",
-            "{0}, `{1}`...\nMusst wohl noch paar Tutorials schauen, hm?",
-            "Autsch {0}, `{1}` erreicht.\nWann kommt der Comeback-Stream?"
-        ],
-        'carry': [
-            "Holy shit {0}, hast du gegen Bots gespielt\noder wie kommt `{1}` zusammen?",
-            "`{1}`,\nwell played, {0}",
-            "`{1}`? NA-Soloqueue,\nright {0} xd",
-            "Yo {0}, wie viel zahlst du deinem\nBooster damit er für dich `{1}` geht?",
-            "Hallo, Herr Doktor? Ja es geht um {0},\n"
-            "er hatte grade ein `{1}` Game und ich glaube sein Rücken ist kaputt.",
-            "LOL {0}? `{1}`?\nCalm down Faker...",
-            "`{1}`! {0} vor,\nnoch ein Tor!",
-            "Wait, {0}.\nDu hast ja doch Hände!? `{1}`, Wow!",
-            "Oida `{1}`.\nHoffe dein Team hat dir 50 € gezahlt {0}",
-            "Hey {0}, war das `{1}` Game eine Audition für LCS oder was?",
-            "Schick mir bitte das Video, wie du mit verbundenen Augen `{1}` erreichst, {0}!",
-            "Gz {0}, mit `{1}` hast du gerade die Definition von 'Carry' neu geschrieben!",
-            "Mein lieber {0}, das `{1}` Game war schlichtweg beeindruckend!"
-        ],
-        'int': [
-            "`{1}`.\nDein fucking Ernst {0}? xd",
-            "Ähm {0}...,\nwillst du deinen Acc nicht mehr oder warum `{1}`?",
-            "`{1}` XDDDDDDDDDDDDDD\nAch cmon {0}, das gibt so save nen Ban :D",
-            "Hey {0}, wen bist du denn in dem Game runtergerannt?\n"
-            "Wer hat nen `{1}`-Inter in seinen Games verdient?",
-            "`{1}`.\nIch lass das mal unkommentiert so stehen, {0}",
-            "Gerade {0}'s Matchhistory gecheckt und sehe `{1}`.\nAHAHAHAHAHAHAHAHAHAHA",
-            "Hallo Riot Support? Es geht um {0}\nJa genau, das `{1}` Game. Danke :)",
-            "{1}? Hey {0}, hoffentlich hast du ein gutes Rückgaberecht für deine ELO!",
-            "Hallo {0}, wollte fragen, ob du das `{1}` Game als Kunstprojekt siehst?",
-            "{1}, {0}. Mit welcher Hand spielst du normalerweise?",
-            "Hey {0}, war das `{1}` Game ein Experiment, um zu sehen, wie weit man sinken kann?",
-            "Lieber {0}, war das `{1}` Game ein Tribut an alte Bronze-Zeiten?",
-            "Oh je, {0}. Ich hoffe, das `{1}` Game hat nicht zu bleibenden Schäden geführt!"
-        ],
-        'tilt': [
-            "Hey {0}, ich glaube du solltest mal eine Pause machen mit deinen `{1}` Pings.",
-            "`{1}` Pings und es wird noch heißer... {0}, wer hat dir das angetan?",
-            "Wenn ich {1} Pings sehe, weiß ich, dass {0} wieder am Start ist.",
-        ]
-    }
-
     def __init__(self, bot):
         self.bot = bot
         self.champions = {}
         self.summoners = {}
         self.engine.start()
+
+        with open(f"{self.bot.path}/data/league/message.json") as file:
+            self.messages = json.load(file)
 
     def cog_unload(self):
         self.engine.cancel()
@@ -439,6 +395,8 @@ class League(commands.Cog):
 
         await self.bot.db.executemany(self.summoner_query, batch)
         await self.bot.db.commit()
+
+        logger.debug(f"(LEAGUE) {len(batch)} summoners refreshed")
         return summoners
 
     async def load_champions(self):
@@ -475,7 +433,7 @@ class League(commands.Cog):
 
     async def send_embed(self, channel, message, summoner=None, champion_id=None, colour=None):
         if summoner is not None and summoner.tier is not None:
-            path = f"{self.bot.path}/data/league/{summoner.tier}.png"
+            path = f"{self.bot.path}/data/league/rank/{summoner.tier}.png"
 
             if os.path.isfile(path):
                 file = discord.File(path, filename="tier.png")
@@ -532,12 +490,12 @@ class League(commands.Cog):
                 name = f"[{member.display_name}]({summoner.op_gg})"
 
                 if old_summoner.int_rank < summoner.int_rank:
-                    base = random.choice(self.messages['up'])
+                    base = random.choice(self.messages['climbed'])
                     msg = base.format(name, summoner.str_rank)
                     await self.send_embed(channel, msg, summoner=summoner, colour=summoner.colour)
 
                 elif old_summoner.int_rank > summoner.int_rank:
-                    base = random.choice(self.messages['down'])
+                    base = random.choice(self.messages['dropped'])
                     msg = base.format(name, summoner.str_rank)
                     await self.send_embed(channel, msg, summoner=summoner, colour=summoner.colour)
 
@@ -558,7 +516,7 @@ class League(commands.Cog):
                         continue
 
                     try:
-                        match = Match(match_data, summoner.id)
+                        match = Match(match_data, summoner)
 
                         if (datetime.utcnow().timestamp() - match.game_end) > 7200:
                             logger.info(f"Match {match.game_id} is too old")
@@ -568,25 +526,24 @@ class League(commands.Cog):
                             logger.info(f"Match {match.queue_id} is not a valid queue id")
                             continue
 
-                        if match.carry():
-                            base = random.choice(self.messages['carry'])
+                        if msg := match.special_scenario(self.messages, name):
+                            await self.send_embed(channel, msg, champion_id=match.champion_id)
+
+                        elif match.carried():
+                            base = random.choice(self.messages['carried'])
                             msg = base.format(name, match.str_kda)
                             colour = discord.Colour.green()
                             await self.send_embed(channel, msg, champion_id=match.champion_id, colour=colour)
 
-                        elif match.int():
-                            base = random.choice(self.messages['int'])
+                        elif match.inted():
+                            base = random.choice(self.messages['inted'])
                             msg = base.format(name, match.str_kda)
                             colour = discord.Colour.red()
                             await self.send_embed(channel, msg, champion_id=match.champion_id, colour=colour)
 
-                        elif match.tilt():
-                            base = random.choice(self.messages['tilt'])
-                            msg = base.format(name, match.challenges['ping'])
-                            await self.send_embed(channel, msg, summoner=summoner)
-
-                        elif base := match.special_scenario():
-                            msg = base.format(name)
+                        elif match.tilted():
+                            base = random.choice(self.messages['tilted'])
+                            msg = base.format(name, f"{match.times_pinged} Pings")
                             await self.send_embed(channel, msg, champion_id=match.champion_id)
 
                     except Exception as error:
@@ -794,7 +751,7 @@ class League(commands.Cog):
             summoner = self.get_summoner_by_member(member or interaction.user)
 
         match_data = await self.fetch_match(summoner.last_match_id)
-        match = Match(match_data, summoner.id)
+        match = Match(match_data, summoner)
         champion = self.champions.get(match.champion_id)
 
         title = f"{summoner.name} (LV {summoner.level})"
