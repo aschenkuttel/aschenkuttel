@@ -17,8 +17,10 @@ class Aschenkuttel(commands.Bot):
         intents.members = True
         kwargs['intents'] = intents
         super().__init__(*args, **kwargs)
+
         self.path = os.path.dirname(__file__)
         self.default_prefix = default_prefix
+        self.owner_id = 211836670666997762
 
         self.config = utils.ConfigHandler(self)
         self._lock = None
@@ -26,7 +28,8 @@ class Aschenkuttel(commands.Bot):
         self.session = None
         self.db = None
 
-        self.activity = discord.Activity(type=2, name="Atilla Hildemann")
+        # self.activity = discord.Activity(type=2, name="Atilla Hildemann")
+        self.activity = discord.Game(name="Roblox")
         self.add_check(self.global_check)
         self.help_command = None
         self.setup_loggers()

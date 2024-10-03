@@ -95,6 +95,10 @@ class Summoner:
         })
 
     @property
+    def full_name(self):
+        return f"{self.name}#{self.tag}"
+
+    @property
     def icon_url(self):
         return f"http://ddragon.leagueoflegends.com/cdn/13.9.1/img/profileicon/{self.icon_id}.png"
 
@@ -137,11 +141,6 @@ class Summoner:
     @property
     def games(self):
         return self.wins + self.losses
-
-    def failed_attempt(self):
-        self._attempts += 1
-        if self._attempts > 4:
-            return True
 
     @property
     def arguments(self):
@@ -243,8 +242,9 @@ class Match:
         self.kd = self.kills / (self.deaths or 1)
         self.kda = self.challenges['kda']
         self.str_kda = f"{self.kills}/{self.deaths}/{self.assists}"
-        self.kill_participation = round(self.challenges['killParticipation'] * 100)
-        self.team_damage_percentage = self.challenges['teamDamagePercentage']
+        self._kill_participation = self.challenges.get('killParticipation', 0)
+        self.team_damage_percentage = self.challenges.get('teamDamagePercentage', 0)
+        self.kill_participation = round(self._kill_participation * 100)
         self.lane = self.player_data['lane']
         self.role = self.player_data['role']
         self.support = self.role == "DUO_SUPPORT"
@@ -277,7 +277,8 @@ class Match:
             return
 
         if not self.support and not self.team_damage_percentage > 0.2:
-            logger.debug(f"Team damage percentage below: {self.team_damage_percentage}")
+            logger.debug(
+                f"Team damage percentage below: {self.team_damage_percentage} from {self.player_data['summonerName']}")
             return
 
         if self.kills >= 10 and self.kd >= 3:  # or (self.kills >= 5 and self.kd >= 4):
@@ -420,18 +421,15 @@ class League(commands.Cog):
             try:
                 new_summoner = await self.fetch_summoner_by_puuid(summoner.puuid, user_id)
             except Exception as error:
-                if not isinstance(error, utils.NoRiotResponse):
-                    logger.error(f"(LEAGUE) refresh for {summoner.name} failed: {error}")
-
-                resp = summoner.failed_attempt()
-
-                if resp is True:
+                if isinstance(error, utils.SummonerNotFound):
                     query = 'DELETE FROM summoner WHERE user_id = $1'
                     await self.bot.execute(query, summoner.user_id)
-
-                    logger.debug(f"(LEAGUE) {summoner.name} removed from summoners")
-                else:
+                    logger.debug(f"(LEAGUE) could not find {summoner.name} - removed from summoners")
+                elif isinstance(error, utils.InvalidRiotResponse):
                     summoners[user_id] = summoner
+                    logger.debug(f"(LEAGUE) refresh for {summoner.name} failed with code {error.status_code}")
+                else:
+                    logger.error(f"(LEAGUE) refresh for {summoner.name} failed: {error}")
 
             else:
                 summoners[user_id] = new_summoner
@@ -506,7 +504,7 @@ class League(commands.Cog):
         try:
             self.champions = await self.refresh_champions()
             current_summoners = await self.refresh_summoners()
-        except (utils.NoRiotResponse, aiohttp.ClientConnectorError, asyncio.TimeoutError):
+        except (utils.InvalidRiotResponse, aiohttp.ClientConnectorError, asyncio.TimeoutError):
             logger.debug("League Loop: no API response")
             return
 
@@ -555,41 +553,46 @@ class League(commands.Cog):
                             logger.debug(f"(LEAGUE) {summoner.last_match_id} is not a valid match")
                             continue
 
-                    except utils.NoRiotResponse:
+                    except utils.InvalidRiotResponse:
                         logger.debug("(LEAGUE) no API response")
                         continue
 
-                    match = Match(match_data, summoner.id)
-                    match.tilt()
+                    try:
+                        match = Match(match_data, summoner.id)
 
-                    if (datetime.utcnow().timestamp() - match.game_end) > 7200:
-                        logger.info(f"Match {match.game_id} is too old")
+                        if (datetime.utcnow().timestamp() - match.game_end) > 7200:
+                            logger.info(f"Match {match.game_id} is too old")
+                            continue
+
+                        if match.queue_id not in Match.valid_queue_ids:
+                            logger.info(f"Match {match.queue_id} is not a valid queue id")
+                            continue
+
+                        if match.carry():
+                            base = random.choice(self.messages['carry'])
+                            msg = base.format(name, match.str_kda)
+                            colour = discord.Colour.green()
+                            await self.send_embed(channel, msg, champion_id=match.champion_id, colour=colour)
+
+                        elif match.int():
+                            base = random.choice(self.messages['int'])
+                            msg = base.format(name, match.str_kda)
+                            colour = discord.Colour.red()
+                            await self.send_embed(channel, msg, champion_id=match.champion_id, colour=colour)
+
+                        elif match.tilt():
+                            base = random.choice(self.messages['tilt'])
+                            msg = base.format(name, match.challenges['ping'])
+                            await self.send_embed(channel, msg, summoner=summoner)
+
+                        elif base := match.special_scenario():
+                            msg = base.format(name)
+                            await self.send_embed(channel, msg, champion_id=match.champion_id)
+
+                    except Exception as error:
+                        logger.error(
+                            f"(LEAGUE) match {summoner.last_match_id} from {summoner.full_name} failed: {error}")
                         continue
-
-                    if match.queue_id not in Match.valid_queue_ids:
-                        logger.info(f"Match {match.queue_id} is not a valid queue id")
-                        continue
-
-                    if match.carry():
-                        base = random.choice(self.messages['carry'])
-                        msg = base.format(name, match.str_kda)
-                        colour = discord.Colour.green()
-                        await self.send_embed(channel, msg, champion_id=match.champion_id, colour=colour)
-
-                    elif match.int():
-                        base = random.choice(self.messages['int'])
-                        msg = base.format(name, match.str_kda)
-                        colour = discord.Colour.red()
-                        await self.send_embed(channel, msg, champion_id=match.champion_id, colour=colour)
-
-                    elif match.tilt():
-                        base = random.choice(self.messages['tilt'])
-                        msg = base.format(name, match.challenges['ping'])
-                        await self.send_embed(channel, msg, summoner=summoner)
-
-                    elif base := match.special_scenario():
-                        msg = base.format(name)
-                        await self.send_embed(channel, msg, champion_id=match.champion_id)
 
                 await asyncio.sleep(.1)
 
@@ -604,13 +607,17 @@ class League(commands.Cog):
         logger.debug("(LEAGUE) setup complete")
 
     @engine.error
-    async def xd(self, error):
-        formatted = "".join(
-            traceback.format_exception(type(error), error, error.__traceback__)
-        )
+    async def on_engine_error(self, error):
+        await self.bot.wait_until_ready()
+        owner = self.bot.get_user(self.bot.owner_id)
+
+        formatted = "".join(traceback.format_exception(type(error), error, error.__traceback__))
         logger.error(f"(LEAGUE) {formatted}")
-        print("logger?")
-        raise error
+
+        if owner is not None:
+            await owner.send(f"league engine error: {formatted}")
+        else:
+            logger.error("owner not found")
 
     def get_summoner_by_member(self, member):
         summoner = self.summoners.get(member.id)
@@ -639,7 +646,7 @@ class League(commands.Cog):
             logger.debug(f"message: {status.get('message')}")
 
             if status_code != 404:
-                raise utils.NoRiotResponse()
+                raise utils.InvalidRiotResponse(status_code)
 
     async def fetch_riot_acc_by_rid(self, name, tag):
         sanitized_name = quote(name)

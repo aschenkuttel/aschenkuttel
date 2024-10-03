@@ -48,7 +48,7 @@ class SummonerArg(app_commands.Transformer):
 
         if league is None:
             interaction.client.logger.error("league cog not loaded")
-            raise utils.NoRiotResponse()
+            raise utils.InvalidRiotResponse(999)
 
         name, tag = value.split('#')
         name, tag = name.strip(), tag.strip()

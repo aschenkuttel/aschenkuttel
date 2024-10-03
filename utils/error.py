@@ -19,9 +19,10 @@ class NoSummonerLinked(app_commands.CheckFailure):
         super().__init__(f"{self.member.name} has no connected summoner")
 
 
-class NoRiotResponse(app_commands.CheckFailure):
-    def __init__(self):
-        super().__init__("Riot API not responding")
+class InvalidRiotResponse(app_commands.CheckFailure):
+    def __init__(self, status_code):
+        self.status_code = status_code
+        super().__init__(f"Invalid Riot API Response with status code: {status_code}")
 
 
 class NoBirthday(app_commands.CheckFailure):
@@ -43,7 +44,7 @@ all_errors = (
     InvalidSummonerName,
     SummonerNotFound,
     NoSummonerLinked,
-    NoRiotResponse,
+    InvalidRiotResponse,
     NoBirthday,
     YoutubeVideoNotFound,
     YoutubeVideoTooBig
