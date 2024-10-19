@@ -76,6 +76,10 @@ class Summoner:
             rank_index = cls.all_ranks.index(rank) + 1
             mmr = tier_index * 1000 + rank_index * 101 + lp
 
+        if api_record.get('profileIconId') is None:
+            print("ICON ID IS NONE")
+            print(api_record)
+
         return cls({
             'user_id': user_id,
             'id': api_record['id'],
@@ -251,7 +255,7 @@ class Match:
         self.support = self.role == "DUO_SUPPORT"
 
         self.pinged_most = {}
-        self.times_pinged = 90
+        self.times_pinged = 0
 
         for key in self.player_data:
             if 'Pings' in key:
@@ -385,6 +389,7 @@ class League(commands.Cog):
                     summoners[user_id] = summoner
                     logger.debug(f"(LEAGUE) refresh for {summoner.name} failed with code {error.status_code}")
                 else:
+                    summoners[user_id] = summoner
                     logger.error(f"(LEAGUE) refresh for {summoner.name} failed: {error}")
 
             else:
