@@ -323,7 +323,7 @@ class Match:
         elif self.quadras > 1 or self.pentas > 0:
             base = random.choice(messages['destroyed'])
 
-            if self.pentas > 1:
+            if self.pentas > 0:
                 action = "`einen Penta`" if self.pentas == 1 else f"`{self.pentas} fucking Pentas`"
                 return base.format(name, action)
             else:
