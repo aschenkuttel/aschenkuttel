@@ -604,6 +604,7 @@ class League(commands.Cog):
                 return cache
 
             status_code = status.get('status_code')
+            logger.debug(f"url: {url}")
             logger.debug(f"status code: {status_code}")
             logger.debug(f"message: {status.get('message')}")
 
@@ -623,12 +624,8 @@ class League(commands.Cog):
             return response
 
     async def fetch_riot_acc_by_puuid(self, puuid):
-        try:
-            url = f"{self.europe_base_url}/riot/account/v1/accounts/by-puuid/{puuid}"
-            return await self.fetch(url)
-        except Exception as e:
-            logger.debug(f"Summoner with puuid {puuid} not found ({e})")
-            return None
+        url = f"{self.europe_base_url}/riot/account/v1/accounts/by-puuid/{puuid}"
+        return await self.fetch(url)
 
     async def fetch_summoner_by_rid(self, name, tag) -> Summoner:
         data = await self.fetch_riot_acc_by_rid(name, tag)
